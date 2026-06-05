@@ -319,7 +319,7 @@ def animate_move(placeholder, base_img, old_positions, player_index, path_indice
 
     final_positions = old_positions.copy()
     final_positions[player_index] = path_indices[-1]
-    frame = draw_board(base_img, final_positions, dice_value, f"도착: {STATIONS[path_indices[-1]]}", path_indices)
+    frame = draw_board(base_img, final_positions, dice_value, f"도착: {STATIONS[path_indices[-1]]}", path_indices=path_indices)
     placeholder.image(frame, use_container_width=True)
     time.sleep(0.25)
     st.session_state.animation_running = False
