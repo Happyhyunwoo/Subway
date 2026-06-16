@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="지하철 모모테츠",
+    page_title="지하철 게임",
     page_icon="🚃",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -67,20 +67,20 @@ BLUE_EVENTS = [
     {"msg": "💰 행운! 점수 +20점!", "score": 20},
     {"msg": "🎁 아이템 카드 획득! 다음 이동 2배 카드!", "item": "double_move"},
     {"msg": "⚡ 급행열차! 주사위를 한 번 더 굴립니다!", "extra_roll": True},
-    {"msg": "🌟 럭키! 빈곤신이 3칸 뒤로 물러납니다!", "push_binbou": 3},
+    {"msg": "🌟 럭키! 먹보유령이 3칸 뒤로 물러납니다!", "push_binbou": 3},
     {"msg": "🎶 축제! 점수 +15점 + 추가 주사위!", "score": 15, "extra_roll": True},
 ]
 
 RED_EVENTS = [
     {"msg": "💸 사건 발생! 점수 -10점!", "score": -10},
     {"msg": "🚧 공사 중! 2칸 후퇴!", "move": -2},
-    {"msg": "😈 빈곤신 접근! 빈곤신이 5칸 앞으로 이동!", "push_binbou": -5},
+    {"msg": "😈 먹보유령 접근! 먹보유령이 5칸 앞으로 이동!", "push_binbou": -5},
     {"msg": "⛔ 운행 중단! 이번 턴 퀴즈 2문제!", "double_quiz": True},
     {"msg": "🌧️ 폭우! 1칸 뒤로 이동!", "move": -1},
 ]
 
 TRAP_EVENTS = [
-    {"msg": "👿 빈곤신 등장! 붙잡혔습니다! 점수 -20점!", "score": -20, "binbou_attach": True},
+    {"msg": "👿 먹보유령 등장! 붙잡혔습니다! 점수 -20점!", "score": -20, "binbou_attach": True},
 ]
 
 ITEMS = {
@@ -93,69 +93,129 @@ ITEMS = {
 DEST_CANDIDATES = ["강남", "홍대입구", "왕십리", "선릉", "시청", "을지로입구", "합정", "교대"]
 
 QUIZZES = [
-    # ── 수학 ──
-    {'category': '수학', 'question': '3 + 2는 얼마일까요?',
-     'options': ['4', '5', '6', '빵 한 개'],  'answer': 1},
-    {'category': '수학', 'question': '10에서 4를 빼면 얼마일까요?',
-     'options': ['5', '6', '7', '냉장고'],  'answer': 1},
-    {'category': '수학', 'question': '1, 2, 3 다음 수는 무엇일까요?',
-     'options': ['4', '5', '6', '아이스크림'],  'answer': 0},
-    {'category': '수학', 'question': '7에서 1을 더하면 얼마일까요?',
-     'options': ['6', '7', '8', '방귀 소리'],  'answer': 2},
-    {'category': '수학', 'question': '두 손의 손가락을 모두 합치면 몇 개일까요?',
-     'options': ['8개', '9개', '10개', '발가락 개수'],  'answer': 2},
-    {'category': '수학', 'question': '9에서 3을 빼면 얼마일까요?',
-     'options': ['5', '6', '7', '치킨 한 마리'],  'answer': 1},
-    {'category': '수학', 'question': '4와 4를 합치면 얼마일까요?',
-     'options': ['6', '7', '8', '44'],  'answer': 2},
-    # ── 국어 ──
-    {'category': '국어', 'question': "'가, 나, 다' 다음 글자는 무엇일까요?",
-     'options': ['라', '마', '바', '피자'],  'answer': 0},
-    {'category': '국어', 'question': "'하늘'과 반대 느낌의 말은 무엇일까요?",
-     'options': ['구름', '땅', '파랑', '엉덩이'],  'answer': 1},
-    {'category': '국어', 'question': "다음 중 동물 이름은 무엇일까요?",
-     'options': ['의자', '토끼', '연필', '바지'],  'answer': 1},
-    {'category': '국어', 'question': "'크다'와 반대말은 무엇일까요?",
-     'options': ['작다', '높다', '멀다', '뽀글뽀글'],  'answer': 0},
-    {'category': '국어', 'question': "다음 중 색깔 이름은 무엇일까요?",
-     'options': ['빨강', '책상', '구름', '방귀'],  'answer': 0},
-    # ── 상식 ──
-    {'category': '상식', 'question': '대한민국의 수도는 어디일까요?',
-     'options': ['서울', '부산', '제주', '우리 집'],  'answer': 0},
-    {'category': '상식', 'question': '지하철은 어디를 달릴까요?',
-     'options': ['하늘', '물속', '땅 위와 땅 아래', '냉장고 안'],  'answer': 2},
-    {'category': '상식', 'question': '빨간불일 때 길을 건너면 될까요?',
-     'options': ['네', '아니요', '가끔', '뛰면 괜찮아요'],  'answer': 1},
-    {'category': '상식', 'question': '소방관은 무엇을 끌까요?',
-     'options': ['불', '자동차', '비', '숙제'],  'answer': 0},
-    {'category': '상식', 'question': '밥을 먹을 때 주로 쓰는 도구는 무엇일까요?',
-     'options': ['가위', '숟가락', '망치', '리모컨'],  'answer': 1},
-    {'category': '상식', 'question': '우리가 숨 쉴 때 마시는 것은 무엇일까요?',
-     'options': ['물', '주스', '공기', '된장찌개'],  'answer': 2},
-    # ── 과학 ──
-    {'category': '과학', 'question': '하늘에서 낮에 밝게 빛나는 것은 무엇일까요?',
-     'options': ['달', '별', '해', '스탠드'],  'answer': 2},
-    {'category': '과학', 'question': '얼음이 녹으면 무엇이 될까요?',
-     'options': ['돌', '물', '모래', '슬러시'],  'answer': 1},
-    {'category': '과학', 'question': '새는 무엇으로 날까요?',
-     'options': ['지느러미', '날개', '바퀴', '점프력'],  'answer': 1},
-    {'category': '과학', 'question': '자석에 잘 붙는 것은 무엇일까요?',
-     'options': ['종이', '나무', '쇠', '껌'],  'answer': 2},
-    {'category': '과학', 'question': '식물이 자라려면 무엇이 필요할까요?',
-     'options': ['햇빛과 물', '과자와 사탕', '음악', '스마트폰'],  'answer': 0},
-    # ── 영어 ──
-    {'category': '영어', 'question': "'apple'은 무엇일까요?",
-     'options': ['사과', '바나나', '우유', '에어팟'],  'answer': 0},
-    {'category': '영어', 'question': "'cat'은 어떤 동물일까요?",
-     'options': ['강아지', '고양이', '물고기', '냥냥펀치'],  'answer': 1},
-    {'category': '영어', 'question': "'blue'는 어떤 색일까요?",
-     'options': ['빨강', '파랑', '노랑', '투명'],  'answer': 1},
-    {'category': '영어', 'question': "'sun'은 무엇일까요?",
-     'options': ['해', '달', '별', '썬크림'],  'answer': 0},
-    {'category': '영어', 'question': "'dog'는 어떤 동물일까요?",
-     'options': ['토끼', '강아지', '고래', '핫도그'],  'answer': 1},
-    {'category': '영어', 'question': "'water'는 무엇일까요?",
-     'options': ['불', '바람', '물', '워터파크'],  'answer': 2},
+    # ══════════════ 수학 ══════════════
+    {'category': '수학', 'question': '5 + 3은 얼마일까요?',
+     'options': ['7', '8', '9', '백만'],  'answer': 1},
+    {'category': '수학', 'question': '12 - 5는 얼마일까요?',
+     'options': ['6', '7', '8', '마이너스 피자'],  'answer': 1},
+    {'category': '수학', 'question': '2 × 3은 얼마일까요?',
+     'options': ['5', '6', '7', '23'],  'answer': 1},
+    {'category': '수학', 'question': '10 ÷ 2는 얼마일까요?',
+     'options': ['3', '4', '5', '두 동강'],  'answer': 2},
+    {'category': '수학', 'question': '삼각형의 꼭짓점은 몇 개일까요?',
+     'options': ['2개', '3개', '4개', '무한개'],  'answer': 1},
+    {'category': '수학', 'question': '100보다 1 작은 수는 무엇일까요?',
+     'options': ['98', '99', '101', '99.9'],  'answer': 1},
+    {'category': '수학', 'question': '4 × 4는 얼마일까요?',
+     'options': ['12', '14', '16', '44'],  'answer': 2},
+    {'category': '수학', 'question': '정사각형의 변은 몇 개일까요?',
+     'options': ['3개', '4개', '5개', '8개'],  'answer': 1},
+    {'category': '수학', 'question': '15 + 6은 얼마일까요?',
+     'options': ['19', '20', '21', '156'],  'answer': 2},
+    {'category': '수학', 'question': '다음 중 가장 큰 수는 어느 것일까요?',
+     'options': ['19', '23', '17', '1000'],  'answer': 3},
+    {'category': '수학', 'question': '30을 3으로 나누면 얼마일까요?',
+     'options': ['9', '10', '11', '303'],  'answer': 1},
+    {'category': '수학', 'question': '1시간은 몇 분일까요?',
+     'options': ['30분', '60분', '100분', '무한분'],  'answer': 1},
+    # ══════════════ 국어 ══════════════
+    {'category': '국어', 'question': "'봄, 여름, 가을' 다음 계절은 무엇일까요?",
+     'options': ['봄', '여름', '겨울', '치킨'],  'answer': 2},
+    {'category': '국어', 'question': "다음 중 과일 이름은 무엇일까요?",
+     'options': ['바나나', '의자', '신발', '연필'],  'answer': 0},
+    {'category': '국어', 'question': "'빠르다'와 비슷한 말은 무엇일까요?",
+     'options': ['느리다', '무겁다', '신속하다', '뽀글뽀글'],  'answer': 2},
+    {'category': '국어', 'question': "다음 중 탈것(이동수단) 이름은 무엇일까요?",
+     'options': ['사자', '버스', '사과', '구름'],  'answer': 1},
+    {'category': '국어', 'question': "'뜨겁다'의 반대말은 무엇일까요?",
+     'options': ['차갑다', '무겁다', '높다', '맛있다'],  'answer': 0},
+    {'category': '국어', 'question': "'웃다'와 반대 뜻의 말은 무엇일까요?",
+     'options': ['달리다', '울다', '먹다', '방귀'],  'answer': 1},
+    {'category': '국어', 'question': "다음 중 날씨를 나타내는 말은 무엇일까요?",
+     'options': ['맑다', '자동차', '우유', '공책'],  'answer': 0},
+    {'category': '국어', 'question': "'ㄱ, ㄴ, ㄷ' 다음 자음은 무엇일까요?",
+     'options': ['ㅁ', 'ㄹ', 'ㅂ', 'ㅎ'],  'answer': 1},
+    {'category': '국어', 'question': "다음 중 채소 이름은 무엇일까요?",
+     'options': ['당근', '비행기', '지우개', '슬리퍼'],  'answer': 0},
+    {'category': '국어', 'question': "'높다'의 반대말은 무엇일까요?",
+     'options': ['멀다', '깊다', '낮다', '엉덩이'],  'answer': 2},
+    {'category': '국어', 'question': "다음 중 가족을 부르는 말이 아닌 것은?",
+     'options': ['엄마', '아빠', '할머니', '냉장고'],  'answer': 3},
+    # ══════════════ 상식 ══════════════
+    {'category': '상식', 'question': '1년은 몇 개월일까요?',
+     'options': ['10개월', '11개월', '12개월', '13개월'],  'answer': 2},
+    {'category': '상식', 'question': '무지개는 몇 가지 색으로 이루어져 있을까요?',
+     'options': ['5가지', '6가지', '7가지', '100가지'],  'answer': 2},
+    {'category': '상식', 'question': '병원에서 일하며 아픈 사람을 돌봐주는 사람은?',
+     'options': ['소방관', '의사', '요리사', '우주인'],  'answer': 1},
+    {'category': '상식', 'question': '쓰레기는 어디에 버려야 할까요?',
+     'options': ['바닥', '강', '쓰레기통', '친구 가방'],  'answer': 2},
+    {'category': '상식', 'question': '횡단보도를 건널 때 초록불이면 어떻게 해야 할까요?',
+     'options': ['뛰어서 건넌다', '좌우를 살피고 건넌다', '그냥 앉아 있는다', '눈 감고 건넌다'],  'answer': 1},
+    {'category': '상식', 'question': '우리나라 국기의 이름은 무엇일까요?',
+     'options': ['성조기', '태극기', '욱일기', '무지개기'],  'answer': 1},
+    {'category': '상식', 'question': '하루는 몇 시간일까요?',
+     'options': ['12시간', '20시간', '24시간', '100시간'],  'answer': 2},
+    {'category': '상식', 'question': '음식을 먹기 전에 해야 할 일은 무엇일까요?',
+     'options': ['손 씻기', '노래 부르기', '점프하기', '숙제하기'],  'answer': 0},
+    {'category': '상식', 'question': '도서관에서 지켜야 할 규칙은 무엇일까요?',
+     'options': ['큰 소리로 노래한다', '조용히 한다', '뛰어다닌다', '라면을 끓여 먹는다'],  'answer': 1},
+    {'category': '상식', 'question': '지구에서 가장 큰 바다는 무엇일까요?',
+     'options': ['대서양', '인도양', '태평양', '목욕탕'],  'answer': 2},
+    {'category': '상식', 'question': '서울 2호선 지하철의 색깔은 무엇일까요?',
+     'options': ['파란색', '초록색', '빨간색', '무지개색'],  'answer': 1},
+    {'category': '상식', 'question': '감기에 걸렸을 때 가야 할 곳은?',
+     'options': ['놀이공원', '수영장', '병원', '치킨집'],  'answer': 2},
+    # ══════════════ 과학 ══════════════
+    {'category': '과학', 'question': '물이 얼면 무엇이 될까요?',
+     'options': ['수증기', '얼음', '구름', '슬러시'],  'answer': 1},
+    {'category': '과학', 'question': '낮과 밤이 생기는 이유는 무엇일까요?',
+     'options': ['해가 자서', '지구가 돌아서', '달이 가려서', '구름 때문에'],  'answer': 1},
+    {'category': '과학', 'question': '식물이 초록색인 이유와 관련 있는 것은?',
+     'options': ['물', '엽록소', '흙', '바람'],  'answer': 1},
+    {'category': '과학', 'question': '물고기는 무엇으로 숨을 쉴까요?',
+     'options': ['코', '아가미', '피부', '입'],  'answer': 1},
+    {'category': '과학', 'question': '다음 중 곤충이 아닌 것은 무엇일까요?',
+     'options': ['나비', '개미', '거미', '잠자리'],  'answer': 2},
+    {'category': '과학', 'question': '달은 지구 주위를 몇 바퀴 도는 데 약 한 달이 걸릴까요?',
+     'options': ['반 바퀴', '한 바퀴', '두 바퀴', '백 바퀴'],  'answer': 1},
+    {'category': '과학', 'question': '다음 중 가장 가벼운 것은?',
+     'options': ['쇠공', '돌멩이', '솜뭉치', '아이스크림'],  'answer': 2},
+    {'category': '과학', 'question': '씨앗이 싹을 틔울 때 가장 먼저 나오는 것은?',
+     'options': ['꽃', '뿌리', '잎', '열매'],  'answer': 1},
+    {'category': '과학', 'question': '비가 오기 전에 하늘에 생기는 것은?',
+     'options': ['무지개', '먹구름', '별', '태양'],  'answer': 1},
+    {'category': '과학', 'question': '우리 몸에서 피를 온몸으로 보내주는 기관은?',
+     'options': ['위', '폐', '심장', '콩팥'],  'answer': 2},
+    {'category': '과학', 'question': '다음 중 포유류는 무엇일까요?',
+     'options': ['독수리', '개구리', '고래', '뱀'],  'answer': 2},
+    {'category': '과학', 'question': '소리는 무엇을 통해 전달될까요?',
+     'options': ['빛', '공기', '그림자', '생각'],  'answer': 1},
+    # ══════════════ 영어 ══════════════
+    {'category': '영어', 'question': "'red'는 무슨 색일까요?",
+     'options': ['파랑', '노랑', '빨강', '투명'],  'answer': 2},
+    {'category': '영어', 'question': "'banana'는 무엇일까요?",
+     'options': ['사과', '바나나', '포도', '바나나우유'],  'answer': 1},
+    {'category': '영어', 'question': "'school'은 어디일까요?",
+     'options': ['집', '병원', '학교', '스쿨버스'],  'answer': 2},
+    {'category': '영어', 'question': "'happy'는 무슨 뜻일까요?",
+     'options': ['슬프다', '행복하다', '배고프다', '해피밀'],  'answer': 1},
+    {'category': '영어', 'question': "'book'은 무엇일까요?",
+     'options': ['책', '공책', '연필', '북극'],  'answer': 0},
+    {'category': '영어', 'question': "'elephant'는 어떤 동물일까요?",
+     'options': ['사자', '기린', '코끼리', '엘리팬트'],  'answer': 2},
+    {'category': '영어', 'question': "'run'은 무슨 뜻일까요?",
+     'options': ['자다', '먹다', '달리다', '런치'],  'answer': 2},
+    {'category': '영어', 'question': "'cold'는 무슨 뜻일까요?",
+     'options': ['뜨겁다', '춥다·차갑다', '달다', '콜드브루'],  'answer': 1},
+    {'category': '영어', 'question': "'friend'는 무슨 뜻일까요?",
+     'options': ['적', '친구', '가족', '프렌치토스트'],  'answer': 1},
+    {'category': '영어', 'question': "'big'과 반대 뜻의 영어 단어는?",
+     'options': ['tall', 'fast', 'small', 'pig'],  'answer': 2},
+    {'category': '영어', 'question': "'rainbow'는 무엇일까요?",
+     'options': ['구름', '번개', '무지개', '레인코트'],  'answer': 2},
+    {'category': '영어', 'question': "'1, 2, 3'을 영어로 세면?",
+     'options': ['one, two, three', 'uno, dos, tres', 'ichi, ni, san', 'han, dul, set'],  'answer': 0},
 ]
 
 
@@ -276,7 +336,7 @@ def move_binbou(steps):
     st.session_state.binbou_pos = bp
     if bp >= st.session_state.position and bp >= 0:
         st.session_state.binbou_attached = True
-        add_event_log("👿 빈곤신이 따라붙었습니다!")
+        add_event_log("👿 먹보유령이 따라붙었습니다!")
 
 
 def apply_square_event(station_name, pos):
@@ -299,7 +359,7 @@ def apply_square_event(station_name, pos):
             add_item(ev["item"])
         if ev.get("push_binbou", 0) > 0:
             move_binbou(-ev["push_binbou"])
-            messages.append(f"📍 빈곤신 {ev['push_binbou']}칸 후퇴!")
+            messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
 
     elif sq == "red":
         if st.session_state.shield_active:
@@ -347,7 +407,7 @@ def apply_square_event(station_name, pos):
 
     if st.session_state.binbou_attached:
         st.session_state.score = max(0, st.session_state.score - 5)
-        messages.append("👿 빈곤신 밀착 중... -5점!")
+        messages.append("👿 먹보유령 밀착 중... -5점!")
 
     return "\n\n".join(messages) if messages else None, extra_roll, double_quiz
 
@@ -368,7 +428,7 @@ def move_forward():
         move_binbou(max(1, dice - 2))
     elif st.session_state.turns >= 5:
         st.session_state.binbou_pos = max(0, new_pos - 8)
-        add_event_log("👿 빈곤신이 등장했습니다!")
+        add_event_log("👿 먹보유령이 등장했습니다!")
 
     path_indices = list(range(old_pos, new_pos + 1))
     did_win = new_pos >= GOAL_INDEX
@@ -619,7 +679,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="stat-row"><span>목적지</span><span class="stat-val" id="s-dest">0회</span></div>
     </div>
     <div class="panel">
-      <div class="panel-title">👿 빈곤신 거리</div>
+      <div class="panel-title">👿 먹보유령 거리</div>
       <div id="binbou-gauge-wrap" style="background:rgba(255,255,255,.08);border-radius:6px;height:16px;overflow:hidden">
         <div id="binbou-gauge" style="height:100%;background:linear-gradient(90deg,#8e44ad,#e74c3c);transition:width .5s;width:0%"></div>
       </div>
@@ -822,7 +882,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #  SIDEBAR
 # ═══════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("## 🚃 지하철 모모테츠")
+    st.markdown("## 🚃 지하철 게임")
     st.caption("서울 2호선 · 1인용 · 성수 → 건대입구")
 
     st.session_state.player_name = st.text_input(
@@ -937,7 +997,7 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 🎯 목적지 카드 달성 시 +50점
-- 👿 빈곤신에게 붙잡히지 않도록!
+- 👿 먹보유령에게 붙잡히지 않도록!
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
@@ -951,32 +1011,4 @@ with st.sidebar:
         st.caption(f"🎯 목적지: **{st.session_state.destination}**")
 
     with st.expander("🗺️ 칸 종류 설명"):
-        st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
-        st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·빈곤신)")
-        st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 빈곤신 소환!")
-        st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
-
-
-# ═══════════════════════════════════════════════════
-#  MAIN
-# ═══════════════════════════════════════════════════
-st.markdown(
-    "<h2 style='margin-bottom:4px'>🚃 지하철 모모테츠 — 서울 2호선</h2>"
-    "<p style='color:#aaa;font-size:13px;margin-bottom:8px'>성수역 출발 → 건대입구역 도착 🏁</p>",
-    unsafe_allow_html=True
-)
-
-msg   = st.session_state.last_message
-phase = st.session_state.game_phase
-if phase == "game_over":
-    st.success(msg)
-elif phase == "answering_quiz":
-    st.warning(msg)
-elif phase == "waiting_penalty_roll":
-    st.error(msg)
-else:
-    st.info(msg)
-
-map_bytes, is_jpg = get_map_bytes()
-render_board(map_bytes, is_jpg)
+        st.caption
