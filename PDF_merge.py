@@ -53,13 +53,13 @@ STATION_POINTS = {
 }
 
 SQUARE_TYPES = {
-    "홍대입구": "blue", "강남": "blue", "왕십리": "blue",
-    "선릉": "blue", "시청": "blue", "이대": "blue",
-    "신도림": "red", "사당": "red", "동대문역사문화공원": "red",
+    "홍대입구": "blue",  "강남": "blue",  "왕십리": "blue",
+    "선릉":     "blue",  "시청": "blue",  "이대":   "blue",
+    "신도림":   "red",   "사당": "red",   "동대문역사문화공원": "red",
     "구로디지털단지": "red",
-    "을지로3가": "star", "잠실": "star", "교대": "star",
-    "합정": "star", "성수": "star",
-    "신림": "trap", "구의": "trap",
+    "을지로3가": "star", "잠실": "star",  "교대":   "star",
+    "합정":     "star",  "성수": "star",
+    "신림":     "trap",  "구의": "trap",
 }
 
 BLUE_EVENTS = [
@@ -121,6 +121,9 @@ QUIZZES = [
 ]
 
 
+# ═══════════════════════════════════════════════════
+#  게임 상태 초기화
+# ═══════════════════════════════════════════════════
 def init_game(keep_name=True):
     old_name = st.session_state.get("player_name", "플레이어")
     st.session_state.player_name       = old_name if keep_name else "플레이어"
@@ -519,12 +522,19 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 .pbar-wrap{{position:absolute;bottom:0;left:0;right:0;height:7px;background:rgba(255,255,255,.1);z-index:20}}
 .pbar{{height:100%;background:linear-gradient(90deg,#2ecc71,#f1c40f,#e74c3c);transition:width .7s ease}}
 #dest-banner{{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.8);border:2px solid #f1c40f;border-radius:10px;padding:5px 10px;color:#f1c40f;font-size:12px;font-weight:700;z-index:20}}
-/* 주사위 오버레이 */
 #dice-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:40;border-radius:14px;flex-direction:column;gap:12px}}
 #dice-overlay.show{{display:flex}}
 #dice-canvas{{width:120px;height:120px;border-radius:18px;box-shadow:0 0 40px rgba(241,196,15,.7)}}
 #dice-result-txt{{color:#f1c40f;font-size:2.2em;font-weight:900;text-shadow:0 0 14px rgba(241,196,15,.9);opacity:0;transition:opacity .3s}}
 #dice-result-txt.show{{opacity:1}}
+#confetti-canvas{{display:none;position:absolute;inset:0;z-index:45;pointer-events:none;border-radius:14px}}
+#confetti-canvas.show{{display:block}}
+#wrong-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:45;border-radius:14px}}
+#wrong-overlay.show{{display:flex;animation:wrongShake .4s ease}}
+@keyframes wrongShake{{0%{{transform:translateX(0)}}15%{{transform:translateX(-10px)}}30%{{transform:translateX(10px)}}45%{{transform:translateX(-8px)}}60%{{transform:translateX(8px)}}75%{{transform:translateX(-4px)}}90%{{transform:translateX(4px)}}100%{{transform:translateX(0)}}}}
+#wrong-emoji{{font-size:6em;animation:wrongBounce .5s ease-out}}
+@keyframes wrongBounce{{0%{{transform:scale(.2);opacity:0}}60%{{transform:scale(1.2)}}100%{{transform:scale(1);opacity:1}}}}
+#wrong-txt{{color:#ff6b6b;font-size:1.4em;font-weight:900;text-shadow:0 0 12px rgba(255,100,100,.8)}}
 #win-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);align-items:center;justify-content:center;flex-direction:column;z-index:50;border-radius:14px}}
 #win-overlay.show{{display:flex}}
 .win-txt{{color:#f1c40f;font-size:2.6em;font-weight:900;text-align:center;animation:winPop .6s ease-out;text-shadow:0 0 20px rgba(241,196,15,.8)}}
@@ -550,6 +560,11 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div id="dice-overlay">
         <canvas id="dice-canvas" width="240" height="240"></canvas>
         <div id="dice-result-txt"></div>
+      </div>
+      <canvas id="confetti-canvas"></canvas>
+      <div id="wrong-overlay">
+        <div id="wrong-emoji">😢</div>
+        <div id="wrong-txt">아쉬워요...</div>
       </div>
       <div id="win-overlay">
         <div class="win-txt">🎉 건대입구 도착! 🎉</div>
@@ -601,6 +616,9 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const diceCanvas=document.getElementById('dice-canvas');
   const diceResultTxt=document.getElementById('dice-result-txt');
   const ctx2d=diceCanvas.getContext('2d');
+  const confettiCanvas=document.getElementById('confetti-canvas');
+  const wrongOverlay=document.getElementById('wrong-overlay');
+
   document.getElementById('s-score').textContent=d.score||0;
   document.getElementById('s-turns').textContent=d.turns||0;
   document.getElementById('s-streak').textContent=d.streak||0;
@@ -608,12 +626,14 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('dest-name').textContent=d.destination||'-';
   const pct=d.stations.length>1?(d.position/(d.stations.length-1)*100).toFixed(1):0;
   pbar.style.width=pct+'%';
+
   const bp=d.binbou_pos,pp=d.position;
   if(bp>=0){{
     const dist=Math.max(0,pp-bp);
     document.getElementById('binbou-gauge').style.width=Math.max(0,100-dist*10)+'%';
     document.getElementById('binbou-txt').textContent=d.binbou_attached?'👿 밀착 중!':dist+'칸 뒤';
   }}
+
   d.stations.forEach((name,i)=>{{
     const pt=d.points[name];if(!pt)return;
     const dot=document.createElement('div');
@@ -625,75 +645,124 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     dot.className=cls;dot.style.left=pt.x+'%';dot.style.top=pt.y+'%';dot.title=name;
     container.appendChild(dot);
   }});
-  function placeTokenPx(el,pt,showLabel){{
+
+  function placeToken(el,pt,showLabel,labelName){{
     el.style.left=pt.x+'%';el.style.top=pt.y+'%';
-    if(showLabel){{label.textContent=d.stations[d.position]||'';label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
+    if(showLabel&&labelName){{label.textContent=labelName;label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
   }}
-  const DICE_DOTS={{1:[[0.5,0.5]],2:[[0.25,0.25],[0.75,0.75]],3:[[0.25,0.25],[0.5,0.5],[0.75,0.75]],4:[[0.25,0.25],[0.75,0.25],[0.25,0.75],[0.75,0.75]],5:[[0.25,0.25],[0.75,0.25],[0.5,0.5],[0.25,0.75],[0.75,0.75]],6:[[0.25,0.2],[0.75,0.2],[0.25,0.5],[0.75,0.5],[0.25,0.8],[0.75,0.8]]}};
+
+  /* 🎲 주사위 */
+  const DICE_DOTS={{1:[[.5,.5]],2:[[.25,.25],[.75,.75]],3:[[.25,.25],[.5,.5],[.75,.75]],4:[[.25,.25],[.75,.25],[.25,.75],[.75,.75]],5:[[.25,.25],[.75,.25],[.5,.5],[.25,.75],[.75,.75]],6:[[.25,.2],[.75,.2],[.25,.5],[.75,.5],[.25,.8],[.75,.8]]}};
   function drawDiceFace(val,angle){{
-    const W=240,H=240,R=26;
-    ctx2d.clearRect(0,0,W,H);ctx2d.save();ctx2d.translate(W/2,H/2);ctx2d.rotate(angle);
-    const grad=ctx2d.createLinearGradient(-W/2,-H/2,W/2,H/2);
-    grad.addColorStop(0,'#fffde7');grad.addColorStop(1,'#fff9c4');
-    ctx2d.beginPath();ctx2d.roundRect(-W/2+10,-H/2+10,W-20,H-20,R);
-    ctx2d.fillStyle=grad;ctx2d.fill();
-    ctx2d.shadowColor='rgba(241,196,15,0.8)';ctx2d.shadowBlur=18;
-    ctx2d.strokeStyle='#f39c12';ctx2d.lineWidth=4;ctx2d.stroke();ctx2d.shadowBlur=0;
-    const dots=DICE_DOTS[val]||DICE_DOTS[1];const area=W-40;
+    const W=240,H=240,R=26;ctx2d.clearRect(0,0,W,H);ctx2d.save();ctx2d.translate(W/2,H/2);ctx2d.rotate(angle);
+    const g=ctx2d.createLinearGradient(-W/2,-H/2,W/2,H/2);g.addColorStop(0,'#fffde7');g.addColorStop(1,'#fff9c4');
+    ctx2d.beginPath();ctx2d.roundRect(-W/2+10,-H/2+10,W-20,H-20,R);ctx2d.fillStyle=g;ctx2d.fill();
+    ctx2d.shadowColor='rgba(241,196,15,.8)';ctx2d.shadowBlur=18;ctx2d.strokeStyle='#f39c12';ctx2d.lineWidth=4;ctx2d.stroke();ctx2d.shadowBlur=0;
+    const dots=DICE_DOTS[val]||DICE_DOTS[1],area=W-40;
     dots.forEach(([fx,fy])=>{{ctx2d.beginPath();ctx2d.arc(-W/2+20+area*fx,-H/2+20+area*fy,14,0,Math.PI*2);ctx2d.fillStyle='#c0392b';ctx2d.fill();}});
     ctx2d.restore();
   }}
-  function easeOut(t){{return 1-(1-t)*(1-t)*(1-t);}}
-  function runDiceAnimation(finalVal,onDone){{
+  function easeOut3(t){{return 1-(1-t)*(1-t)*(1-t);}}
+  function runDiceAnim(finalVal,onDone){{
     diceOverlay.classList.add('show');diceResultTxt.classList.remove('show');diceResultTxt.textContent='';
-    const TOTAL_MS=900,start=performance.now();
+    const TOTAL=900,t0=performance.now();
     function frame(now){{
-      const elapsed=now-start,progress=Math.min(elapsed/TOTAL_MS,1),eased=easeOut(progress);
-      const interval=60+eased*180;
-      const showVal=progress>0.75?finalVal:(Math.floor(Math.random()*6)+1);
-      const angle=(1-eased)*(elapsed/TOTAL_MS)*Math.PI*4;
-      drawDiceFace(showVal,angle);
-      if(progress<1){{setTimeout(()=>requestAnimationFrame(frame),interval);}}
-      else{{
-        drawDiceFace(finalVal,0);
-        diceResultTxt.textContent=finalVal+'칸 이동!';diceResultTxt.classList.add('show');
-        setTimeout(()=>{{diceOverlay.classList.remove('show');diceResultTxt.classList.remove('show');onDone();}},600);
-      }}
+      const elapsed=now-t0,p=Math.min(elapsed/TOTAL,1),e=easeOut3(p);
+      const showVal=p>0.75?finalVal:(Math.floor(Math.random()*6)+1);
+      drawDiceFace(showVal,(1-e)*(elapsed/TOTAL)*Math.PI*4);
+      if(p<1)setTimeout(()=>requestAnimationFrame(frame),60+e*180);
+      else{{drawDiceFace(finalVal,0);diceResultTxt.textContent=finalVal+'칸 이동!';diceResultTxt.classList.add('show');setTimeout(()=>{{diceOverlay.classList.remove('show');diceResultTxt.classList.remove('show');onDone();}},600);}}
     }}
     requestAnimationFrame(frame);
   }}
-  function easeInOut(t){{return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}}
-  function animateTokenAlongPath(path,doneCallback){{
-    if(!path||path.length<2){{const pt=d.points[d.stations[d.position]];if(pt)placeTokenPx(tokenPlayer,pt,true);doneCallback&&doneCallback();return;}}
-    let segIdx=0;const SEG_MS=280;
-    function moveSegment(){{
-      if(segIdx>=path.length-1){{const finalPt=d.points[d.stations[path[path.length-1]]];if(finalPt)placeTokenPx(tokenPlayer,finalPt,true);doneCallback&&doneCallback();return;}}
-      const fromName=d.stations[path[segIdx]],toName=d.stations[path[segIdx+1]];
-      const from=d.points[fromName],to=d.points[toName];
-      if(!from||!to){{segIdx++;moveSegment();return;}}
-      const segStart=performance.now();
-      function segFrame(now){{
-        const t=Math.min((now-segStart)/SEG_MS,1),ease=easeInOut(t);
-        const cx=from.x+(to.x-from.x)*ease,cy=from.y+(to.y-from.y)*ease;
-        tokenPlayer.style.left=cx+'%';tokenPlayer.style.top=cy+'%';
-        if(segIdx===path.length-2&&t>0.8){{label.textContent=toName;label.style.left=to.x+'%';label.style.top=to.y+'%';label.style.display='block';}}
-        if(t<1){{requestAnimationFrame(segFrame);}}else{{segIdx++;moveSegment();}}
-      }}
-      requestAnimationFrame(segFrame);
-    }}
-    moveSegment();
+
+  /* 🚃 말 이동 — Catmull-Rom + quintic easeInOut */
+  function easeInOut5(t){{return t<0.5?16*t*t*t*t*t:1-Math.pow(-2*t+2,5)/2;}}
+  function catmullRom(p0,p1,p2,p3,t){{const t2=t*t,t3=t2*t;return 0.5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t2+(-p0+3*p1-3*p2+p3)*t3);}}
+  function buildSpline(pathIndices){{
+    const pts=pathIndices.map(i=>d.points[d.stations[i]]).filter(Boolean);
+    if(pts.length<2)return pts;
+    const f=pts[0],l=pts[pts.length-1];
+    return [{{x:2*f.x-pts[1].x,y:2*f.y-pts[1].y}},...pts,{{x:2*l.x-pts[pts.length-2].x,y:2*l.y-pts[pts.length-2].y}}];
   }}
-  const ev=d.event;const hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
+  function sampleSpline(ctrl,totalSamples){{
+    const segs=ctrl.length-3,result=[];
+    for(let s=0;s<segs;s++){{
+      const p0=ctrl[s],p1=ctrl[s+1],p2=ctrl[s+2],p3=ctrl[s+3];
+      const n=Math.max(4,Math.round(totalSamples/segs));
+      for(let i=0;i<n;i++){{const t=i/n;result.push({{x:catmullRom(p0.x,p1.x,p2.x,p3.x,t),y:catmullRom(p0.y,p1.y,p2.y,p3.y,t)}});}}
+    }}
+    const last=ctrl[ctrl.length-2];result.push({{x:last.x,y:last.y}});return result;
+  }}
+  function animateToken(pathIndices,doneCallback){{
+    if(!pathIndices||pathIndices.length<2){{const pt=d.points[d.stations[d.position]];if(pt)placeToken(tokenPlayer,pt,true,d.stations[d.position]);doneCallback&&doneCallback();return;}}
+    const ctrl=buildSpline(pathIndices);
+    const SAMPLES=Math.max(60,pathIndices.length*20);
+    const curve=sampleSpline(ctrl,SAMPLES);
+    const finalName=d.stations[pathIndices[pathIndices.length-1]];
+    const TOTAL_MS=Math.min(pathIndices.length*220,2000);
+    const t0=performance.now();
+    function frame(now){{
+      const elapsed=now-t0,rawT=Math.min(elapsed/TOTAL_MS,1),eased=easeInOut5(rawT);
+      const idx=Math.min(Math.floor(eased*(curve.length-1)),curve.length-1);
+      const pt=curve[idx];
+      tokenPlayer.style.left=pt.x+'%';tokenPlayer.style.top=pt.y+'%';
+      if(rawT>0.8){{const fp=d.points[finalName];if(fp){{label.textContent=finalName;label.style.left=fp.x+'%';label.style.top=fp.y+'%';label.style.display='block';}}}}
+      if(rawT<1)requestAnimationFrame(frame);
+      else{{const snap=d.points[finalName];if(snap)placeToken(tokenPlayer,snap,true,finalName);doneCallback&&doneCallback();}}
+    }}
+    requestAnimationFrame(frame);
+  }}
+
+  /* 🌸 꽃가루 */
+  function runConfetti(){{
+    const canvas=confettiCanvas;
+    canvas.width=container.offsetWidth||800;canvas.height=container.offsetHeight||550;
+    canvas.classList.add('show');
+    const ctx=canvas.getContext('2d');
+    const COLORS=['#f1c40f','#2ecc71','#3498db','#e74c3c','#9b59b6','#1abc9c','#e67e22','#ff69b4','#fff'];
+    const SHAPES=['rect','circle','star'];
+    const particles=Array.from({{length:120}},()=>{{
+      const cx=canvas.width/2;
+      return {{x:cx+(Math.random()-.5)*40,y:canvas.height*.45,vx:(Math.random()-.5)*9,vy:-(Math.random()*10+4),size:Math.random()*10+4,color:COLORS[Math.floor(Math.random()*COLORS.length)],shape:SHAPES[Math.floor(Math.random()*SHAPES.length)],rotation:Math.random()*360,rotSpeed:(Math.random()-.5)*12,gravity:.28,drag:.98,life:1,decay:Math.random()*.012+.008}};
+    }});
+    function drawStar(ctx,x,y,r,rot){{ctx.save();ctx.translate(x,y);ctx.rotate(rot*Math.PI/180);ctx.beginPath();for(let i=0;i<5;i++){{const a=((i*72)-90)*Math.PI/180,b=((i*72+36)-90)*Math.PI/180;i===0?ctx.moveTo(Math.cos(a)*r,Math.sin(a)*r):ctx.lineTo(Math.cos(a)*r,Math.sin(a)*r);ctx.lineTo(Math.cos(b)*r*.45,Math.sin(b)*r*.45);}}ctx.closePath();ctx.fill();ctx.restore();}}
+    let raf;
+    function tick(){{
+      ctx.clearRect(0,0,canvas.width,canvas.height);let alive=false;
+      particles.forEach(p=>{{
+        p.vy+=p.gravity;p.vx*=p.drag;p.vy*=p.drag;p.x+=p.vx;p.y+=p.vy;p.rotation+=p.rotSpeed;p.life-=p.decay;
+        if(p.life<=0)return;alive=true;
+        ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;
+        if(p.shape==='rect'){{ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.rotation*Math.PI/180);ctx.fillRect(-p.size/2,-p.size/4,p.size,p.size/2);ctx.restore();}}
+        else if(p.shape==='circle'){{ctx.beginPath();ctx.arc(p.x,p.y,p.size/2,0,Math.PI*2);ctx.fill();}}
+        else{{ctx.save();ctx.fillStyle=p.color;drawStar(ctx,p.x,p.y,p.size/1.5,p.rotation);ctx.restore();}}
+      }});
+      ctx.globalAlpha=1;
+      if(alive)raf=requestAnimationFrame(tick);else{{canvas.classList.remove('show');cancelAnimationFrame(raf);}}
+    }}
+    raf=requestAnimationFrame(tick);
+    setTimeout(()=>{{canvas.classList.remove('show');cancelAnimationFrame(raf);}},2800);
+  }}
+
+  /* 😢 오답 */
+  function runWrongAnim(){{wrongOverlay.classList.add('show');setTimeout(()=>wrongOverlay.classList.remove('show'),1800);}}
+
+  /* 🎬 메인 시퀀스 */
+  if(d.playSound==='correct')runConfetti();
+  if(d.playSound==='wrong')runWrongAnim();
+
+  const ev=d.event,hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
   if(d.binbou_pos>=0){{tokenBinbou.style.display='flex';const bpt=d.points[d.stations[d.binbou_pos]];if(bpt){{tokenBinbou.style.left=bpt.x+'%';tokenBinbou.style.top=bpt.y+'%';}}}}
   if(hasMove&&ev.dice){{
-    const startPt=d.points[d.stations[ev.path_indices[0]]];
-    if(startPt)placeTokenPx(tokenPlayer,startPt,false);
-    runDiceAnimation(ev.dice,()=>{{
-      animateTokenAlongPath(ev.path_indices,()=>{{
-        if(d.binbou_pos>=0){{const bpt2=d.points[d.stations[d.binbou_pos]];if(bpt2){{tokenBinbou.style.transition='left .6s ease,top .6s ease';tokenBinbou.style.left=bpt2.x+'%';tokenBinbou.style.top=bpt2.y+'%';}}}}
+    const startPt=d.points[d.stations[ev.path_indices[0]]];if(startPt)placeToken(tokenPlayer,startPt,false,null);
+    runDiceAnim(ev.dice,()=>{{
+      animateToken(ev.path_indices,()=>{{
+        if(d.binbou_pos>=0){{const bpt2=d.points[d.stations[d.binbou_pos]];if(bpt2){{tokenBinbou.style.transition='left .7s cubic-bezier(.25,.46,.45,.94),top .7s cubic-bezier(.25,.46,.45,.94)';tokenBinbou.style.left=bpt2.x+'%';tokenBinbou.style.top=bpt2.y+'%';}}}}
       }});
     }});
-  }}else{{const pt=d.points[d.stations[d.position]];if(pt)placeTokenPx(tokenPlayer,pt,true);}}
+  }}else{{const pt=d.points[d.stations[d.position]];if(pt)placeToken(tokenPlayer,pt,true,d.stations[d.position]);}}
+
   const logEl=document.getElementById('event-log');
   (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
   if(d.winner){{winOverlay.classList.add('show');document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';}}
