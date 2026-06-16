@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="지하철 모모테츠",
+    page_title="지하철 게임",
     page_icon="🚃",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -497,20 +497,14 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #wrap{{display:flex;gap:10px;padding:8px;height:100vh}}
 #board-col{{flex:1;min-width:0}}
 #right-col{{width:200px;display:flex;flex-direction:column;gap:8px}}
-#board-container{{position:relative;width:100%;padding-bottom:69%;border-radius:14px;
-  overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
+#board-container{{position:relative;width:100%;padding-bottom:69%;border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}}
-.token{{position:absolute;width:34px;height:34px;transform:translate(-50%,-50%);
-  border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;
-  font-size:18px;z-index:12;
-  transition:left .4s cubic-bezier(.68,-.55,.27,1.55),top .4s cubic-bezier(.68,-.55,.27,1.55)}}
-#token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);
-  box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
-#token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);
-  box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
+.token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none}}
+#token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
+#token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
 @keyframes binbouPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(255,0,100,.8)}}50%{{box-shadow:0 0 24px 10px rgba(255,0,100,.3)}}}}
-.sdot{{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);z-index:5;transition:all .3s}}
+.sdot{{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);z-index:5}}
 .sdot-normal{{background:rgba(255,255,255,.12)}}
 .sdot-blue{{background:rgba(52,152,219,.6);box-shadow:0 0 7px rgba(52,152,219,.8)}}
 .sdot-red{{background:rgba(231,76,60,.6);box-shadow:0 0 7px rgba(231,76,60,.8)}}
@@ -520,19 +514,20 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 .sdot-active{{outline:3px solid #fff;outline-offset:2px}}
 @keyframes starGlow{{0%,100%{{transform:translate(-50%,-50%) scale(1)}}50%{{transform:translate(-50%,-50%) scale(1.5)}}}}
 @keyframes goalGlow{{0%,100%{{box-shadow:0 0 10px 4px rgba(0,255,136,.8)}}50%{{box-shadow:0 0 22px 10px rgba(0,255,136,.4)}}}}
-.slabel{{position:absolute;transform:translate(-50%,-215%);background:rgba(10,0,30,.9);
-  color:#2ecc71;padding:2px 7px;border-radius:5px;font-size:11px;white-space:nowrap;
-  z-index:16;pointer-events:none;border:1px solid #2ecc71;animation:labelPop .35s ease-out}}
+.slabel{{position:absolute;transform:translate(-50%,-215%);background:rgba(10,0,30,.9);color:#2ecc71;padding:2px 7px;border-radius:5px;font-size:11px;white-space:nowrap;z-index:16;pointer-events:none;border:1px solid #2ecc71;animation:labelPop .35s ease-out}}
 @keyframes labelPop{{0%{{opacity:0;transform:translate(-50%,-185%) scale(.8)}}100%{{opacity:1;transform:translate(-50%,-215%) scale(1)}}}}
 .pbar-wrap{{position:absolute;bottom:0;left:0;right:0;height:7px;background:rgba(255,255,255,.1);z-index:20}}
 .pbar{{height:100%;background:linear-gradient(90deg,#2ecc71,#f1c40f,#e74c3c);transition:width .7s ease}}
-#dest-banner{{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.8);
-  border:2px solid #f1c40f;border-radius:10px;padding:5px 10px;color:#f1c40f;font-size:12px;font-weight:700;z-index:20}}
-#win-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);
-  align-items:center;justify-content:center;flex-direction:column;z-index:50;border-radius:14px}}
+#dest-banner{{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.8);border:2px solid #f1c40f;border-radius:10px;padding:5px 10px;color:#f1c40f;font-size:12px;font-weight:700;z-index:20}}
+/* 주사위 오버레이 */
+#dice-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:40;border-radius:14px;flex-direction:column;gap:12px}}
+#dice-overlay.show{{display:flex}}
+#dice-canvas{{width:120px;height:120px;border-radius:18px;box-shadow:0 0 40px rgba(241,196,15,.7)}}
+#dice-result-txt{{color:#f1c40f;font-size:2.2em;font-weight:900;text-shadow:0 0 14px rgba(241,196,15,.9);opacity:0;transition:opacity .3s}}
+#dice-result-txt.show{{opacity:1}}
+#win-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.85);align-items:center;justify-content:center;flex-direction:column;z-index:50;border-radius:14px}}
 #win-overlay.show{{display:flex}}
-.win-txt{{color:#f1c40f;font-size:2.6em;font-weight:900;text-align:center;
-  animation:winPop .6s ease-out;text-shadow:0 0 20px rgba(241,196,15,.8)}}
+.win-txt{{color:#f1c40f;font-size:2.6em;font-weight:900;text-align:center;animation:winPop .6s ease-out;text-shadow:0 0 20px rgba(241,196,15,.8)}}
 @keyframes winPop{{0%{{transform:scale(.3) rotate(-20deg);opacity:0}}100%{{transform:scale(1) rotate(0);opacity:1}}}}
 .panel{{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:8px;color:#fff}}
 .panel-title{{font-size:11px;font-weight:700;color:#aaa;margin-bottom:6px;letter-spacing:.5px}}
@@ -552,6 +547,10 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div id="station-label" class="slabel" style="display:none"></div>
       <div id="dest-banner">🎯 목적지: <span id="dest-name">-</span></div>
       <div class="pbar-wrap"><div class="pbar" id="progress-bar" style="width:0%"></div></div>
+      <div id="dice-overlay">
+        <canvas id="dice-canvas" width="240" height="240"></canvas>
+        <div id="dice-result-txt"></div>
+      </div>
       <div id="win-overlay">
         <div class="win-txt">🎉 건대입구 도착! 🎉</div>
         <div style="color:#fff;margin-top:14px;font-size:1.2em" id="win-details"></div>
@@ -598,6 +597,10 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const label=document.getElementById('station-label');
   const pbar=document.getElementById('progress-bar');
   const winOverlay=document.getElementById('win-overlay');
+  const diceOverlay=document.getElementById('dice-overlay');
+  const diceCanvas=document.getElementById('dice-canvas');
+  const diceResultTxt=document.getElementById('dice-result-txt');
+  const ctx2d=diceCanvas.getContext('2d');
   document.getElementById('s-score').textContent=d.score||0;
   document.getElementById('s-turns').textContent=d.turns||0;
   document.getElementById('s-streak').textContent=d.streak||0;
@@ -622,26 +625,82 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     dot.className=cls;dot.style.left=pt.x+'%';dot.style.top=pt.y+'%';dot.title=name;
     container.appendChild(dot);
   }});
-  function placeToken(el,posIdx,isLabel){{
-    const name=d.stations[posIdx];if(!name)return;
-    const pt=d.points[name];if(!pt)return;
+  function placeTokenPx(el,pt,showLabel){{
     el.style.left=pt.x+'%';el.style.top=pt.y+'%';
-    if(isLabel){{label.textContent=name;label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
+    if(showLabel){{label.textContent=d.stations[d.position]||'';label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
   }}
-  if(d.binbou_pos>=0){{tokenBinbou.style.display='flex';placeToken(tokenBinbou,d.binbou_pos,false);}}
-  const ev=d.event;
-  if(ev&&ev.path_indices&&ev.path_indices.length>1){{
-    let step=0;const path=ev.path_indices;
-    function animStep(){{if(step>=path.length){{placeToken(tokenPlayer,d.position,true);return;}}placeToken(tokenPlayer,path[step],true);step++;setTimeout(animStep,210);}}
-    animStep();
-  }}else{{placeToken(tokenPlayer,d.position,true);}}
+  const DICE_DOTS={{1:[[0.5,0.5]],2:[[0.25,0.25],[0.75,0.75]],3:[[0.25,0.25],[0.5,0.5],[0.75,0.75]],4:[[0.25,0.25],[0.75,0.25],[0.25,0.75],[0.75,0.75]],5:[[0.25,0.25],[0.75,0.25],[0.5,0.5],[0.25,0.75],[0.75,0.75]],6:[[0.25,0.2],[0.75,0.2],[0.25,0.5],[0.75,0.5],[0.25,0.8],[0.75,0.8]]}};
+  function drawDiceFace(val,angle){{
+    const W=240,H=240,R=26;
+    ctx2d.clearRect(0,0,W,H);ctx2d.save();ctx2d.translate(W/2,H/2);ctx2d.rotate(angle);
+    const grad=ctx2d.createLinearGradient(-W/2,-H/2,W/2,H/2);
+    grad.addColorStop(0,'#fffde7');grad.addColorStop(1,'#fff9c4');
+    ctx2d.beginPath();ctx2d.roundRect(-W/2+10,-H/2+10,W-20,H-20,R);
+    ctx2d.fillStyle=grad;ctx2d.fill();
+    ctx2d.shadowColor='rgba(241,196,15,0.8)';ctx2d.shadowBlur=18;
+    ctx2d.strokeStyle='#f39c12';ctx2d.lineWidth=4;ctx2d.stroke();ctx2d.shadowBlur=0;
+    const dots=DICE_DOTS[val]||DICE_DOTS[1];const area=W-40;
+    dots.forEach(([fx,fy])=>{{ctx2d.beginPath();ctx2d.arc(-W/2+20+area*fx,-H/2+20+area*fy,14,0,Math.PI*2);ctx2d.fillStyle='#c0392b';ctx2d.fill();}});
+    ctx2d.restore();
+  }}
+  function easeOut(t){{return 1-(1-t)*(1-t)*(1-t);}}
+  function runDiceAnimation(finalVal,onDone){{
+    diceOverlay.classList.add('show');diceResultTxt.classList.remove('show');diceResultTxt.textContent='';
+    const TOTAL_MS=900,start=performance.now();
+    function frame(now){{
+      const elapsed=now-start,progress=Math.min(elapsed/TOTAL_MS,1),eased=easeOut(progress);
+      const interval=60+eased*180;
+      const showVal=progress>0.75?finalVal:(Math.floor(Math.random()*6)+1);
+      const angle=(1-eased)*(elapsed/TOTAL_MS)*Math.PI*4;
+      drawDiceFace(showVal,angle);
+      if(progress<1){{setTimeout(()=>requestAnimationFrame(frame),interval);}}
+      else{{
+        drawDiceFace(finalVal,0);
+        diceResultTxt.textContent=finalVal+'칸 이동!';diceResultTxt.classList.add('show');
+        setTimeout(()=>{{diceOverlay.classList.remove('show');diceResultTxt.classList.remove('show');onDone();}},600);
+      }}
+    }}
+    requestAnimationFrame(frame);
+  }}
+  function easeInOut(t){{return t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;}}
+  function animateTokenAlongPath(path,doneCallback){{
+    if(!path||path.length<2){{const pt=d.points[d.stations[d.position]];if(pt)placeTokenPx(tokenPlayer,pt,true);doneCallback&&doneCallback();return;}}
+    let segIdx=0;const SEG_MS=280;
+    function moveSegment(){{
+      if(segIdx>=path.length-1){{const finalPt=d.points[d.stations[path[path.length-1]]];if(finalPt)placeTokenPx(tokenPlayer,finalPt,true);doneCallback&&doneCallback();return;}}
+      const fromName=d.stations[path[segIdx]],toName=d.stations[path[segIdx+1]];
+      const from=d.points[fromName],to=d.points[toName];
+      if(!from||!to){{segIdx++;moveSegment();return;}}
+      const segStart=performance.now();
+      function segFrame(now){{
+        const t=Math.min((now-segStart)/SEG_MS,1),ease=easeInOut(t);
+        const cx=from.x+(to.x-from.x)*ease,cy=from.y+(to.y-from.y)*ease;
+        tokenPlayer.style.left=cx+'%';tokenPlayer.style.top=cy+'%';
+        if(segIdx===path.length-2&&t>0.8){{label.textContent=toName;label.style.left=to.x+'%';label.style.top=to.y+'%';label.style.display='block';}}
+        if(t<1){{requestAnimationFrame(segFrame);}}else{{segIdx++;moveSegment();}}
+      }}
+      requestAnimationFrame(segFrame);
+    }}
+    moveSegment();
+  }}
+  const ev=d.event;const hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
+  if(d.binbou_pos>=0){{tokenBinbou.style.display='flex';const bpt=d.points[d.stations[d.binbou_pos]];if(bpt){{tokenBinbou.style.left=bpt.x+'%';tokenBinbou.style.top=bpt.y+'%';}}}}
+  if(hasMove&&ev.dice){{
+    const startPt=d.points[d.stations[ev.path_indices[0]]];
+    if(startPt)placeTokenPx(tokenPlayer,startPt,false);
+    runDiceAnimation(ev.dice,()=>{{
+      animateTokenAlongPath(ev.path_indices,()=>{{
+        if(d.binbou_pos>=0){{const bpt2=d.points[d.stations[d.binbou_pos]];if(bpt2){{tokenBinbou.style.transition='left .6s ease,top .6s ease';tokenBinbou.style.left=bpt2.x+'%';tokenBinbou.style.top=bpt2.y+'%';}}}}
+      }});
+    }});
+  }}else{{const pt=d.points[d.stations[d.position]];if(pt)placeTokenPx(tokenPlayer,pt,true);}}
   const logEl=document.getElementById('event-log');
   (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
   if(d.winner){{winOverlay.classList.add('show');document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';}}
   if(d.soundEnabled&&d.playSound){{
     try{{
-      const ctx=new(window.AudioContext||window.webkitAudioContext)();
-      function beep(f,dur,type='sine',vol=0.25){{const o=ctx.createOscillator(),g=ctx.createGain();o.connect(g);g.connect(ctx.destination);o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,ctx.currentTime);g.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+dur);o.start();o.stop(ctx.currentTime+dur);}}
+      const actx=new(window.AudioContext||window.webkitAudioContext)();
+      function beep(f,dur,type='sine',vol=0.25){{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);o.start();o.stop(actx.currentTime+dur);}}
       if(d.playSound==='dice'){{beep(440,.1);setTimeout(()=>beep(660,.1),100);}}
       if(d.playSound==='correct'){{beep(523,.1);setTimeout(()=>beep(659,.1),100);setTimeout(()=>beep(784,.25),200);}}
       if(d.playSound==='wrong'){{beep(180,.35,'sawtooth',.2);}}
