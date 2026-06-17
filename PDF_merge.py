@@ -268,11 +268,11 @@ def start_game():
 
 
 def get_map_bytes():
-    for fname in ["line2_map-3.jpg", "line2_map.png"]:
+    for fname in ["line2_map.jpg", "line2_map.png"]:
         p = APP_DIR / fname
         if p.exists():
             return p.read_bytes(), fname.endswith(".jpg")
-    st.error("노선도 이미지 파일이 없습니다. line2_map-3.jpg 파일을 같은 폴더에 놓아 주세요.")
+    st.error("노선도 이미지 파일이 없습니다. line2_map.jpg 파일을 같은 폴더에 놓아 주세요.")
     st.stop()
 
 
@@ -875,7 +875,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 
     st.session_state.play_sound      = None
     st.session_state.animation_event = None
-    components.html(html, height=730, scrolling=False)
+    components.html(html, height=800, scrolling=False)
 
 
 # ═══════════════════════════════════════════════════
