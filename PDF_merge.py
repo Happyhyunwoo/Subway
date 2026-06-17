@@ -26,8 +26,8 @@ STATIONS = [
 GOAL_STATION = "건대입구"
 GOAL_INDEX   = len(STATIONS) - 1
 
-ORIGINAL_WIDTH  = 1366
-ORIGINAL_HEIGHT = 917
+ORIGINAL_WIDTH  = 1340
+ORIGINAL_HEIGHT = 1080
 
 STATION_PIXELS = {
     "성수":          (1147, 385), "뚝섬":         (1099, 320), "한양대":       (1045, 292),
