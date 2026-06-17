@@ -30,21 +30,30 @@ ORIGINAL_WIDTH  = 1340
 ORIGINAL_HEIGHT = 1080
 
 STATION_PIXELS = {
-    "성수":          (1147, 385), "뚝섬":         (1099, 320), "한양대":       (1045, 292),
-    "왕십리":        (1007, 247), "상왕십리":      (928,  247), "신당":         (854,  228),
-    "동대문역사문화공원": (781, 247), "을지로4가":  (694,  247), "을지로3가":    (615,  247),
-    "을지로입구":    (540,  246), "시청":          (474,  246), "충정로":       (399,  247),
-    "아현":          (324,  247), "이대":          (291,  289), "신촌":         (264,  380),
-    "홍대입구":      (264,  445), "합정":          (264,  501), "당산":         (264,  568),
-    "영등포구청":    (264,  634), "문래":          (264,  694), "신도림":       (264,  757),
-    "대림":          (266,  815), "구로디지털단지": (278, 853), "신대방":       (337,  869),
-    "신림":          (390,  869), "봉천":          (445,  869), "서울대입구":   (498,  869),
-    "낙성대":        (556,  869), "사당":          (649,  852), "방배":         (713,  869),
-    "서초":          (780,  869), "교대":          (849,  869), "강남":         (918,  850),
-    "역삼":          (978,  869), "선릉":          (1043, 869), "삼성":         (1111, 845),
-    "종합운동장":    (1141, 781), "신천":          (1144, 719), "잠실":         (1144, 640),
-    "잠실나루":      (1144, 570), "구의":          (1144, 490), "강변":         (1144, 420),
-    "건대입구":      (1144, 350),
+    # 상단 수평 구간
+    "아현":          (230,  230), "충정로":        (300,  225), "시청":          (380,  225),
+    "을지로입구":    (460,  225), "을지로3가":     (540,  225), "을지로4가":     (620,  225),
+    "동대문역사문화공원": (705, 210), "신당":      (775,  225), "상왕십리":      (855,  225),
+    "왕십리":        (935,  225),
+    # 오른쪽 꺾임
+    "한양대":        (1010, 265), "뚝섬":          (1055, 310),
+    # 오른쪽 수직
+    "성수":          (1090, 380), "건대입구":      (1090, 445), "구의":          (1090, 510),
+    "강변":          (1090, 575), "잠실나루":      (1090, 630), "잠실":          (1090, 695),
+    "신천":          (1090, 755), "종합운동장":    (1090, 810), "삼성":          (1050, 855),
+    # 하단 수평 구간
+    "선릉":          (980,  875), "역삼":          (910,  875), "강남":          (840,  875),
+    "교대":          (770,  875), "서초":          (700,  875), "방배":          (630,  875),
+    "사당":          (560,  875), "낙성대":        (490,  875), "서울대입구":    (420,  875),
+    "봉천":          (355,  875), "신림":          (290,  875), "신대방":        (230,  855),
+    # 왼쪽 하단 꺾임
+    "구로디지털단지": (185, 820),
+    # 왼쪽 수직
+    "대림":          (165,  760), "신도림":        (165,  700), "문래":          (165,  635),
+    "영등포구청":    (165,  570), "당산":          (165,  510), "합정":          (165,  450),
+    "홍대입구":      (165,  390),
+    # 왼쪽 상단 꺾임
+    "신촌":          (185,  325), "이대":          (215,  270),
 }
 
 STATION_POINTS = {
@@ -268,11 +277,11 @@ def start_game():
 
 
 def get_map_bytes():
-    for fname in ["line2_map.jpg", "line2_map.png"]:
+    for fname in ["line2_map-3.jpg", "line2_map.png"]:
         p = APP_DIR / fname
         if p.exists():
             return p.read_bytes(), fname.endswith(".jpg")
-    st.error("노선도 이미지 파일이 없습니다. line2_map.jpg 파일을 같은 폴더에 놓아 주세요.")
+    st.error("노선도 이미지 파일이 없습니다. line2_map-3.jpg 파일을 같은 폴더에 놓아 주세요.")
     st.stop()
 
 
@@ -600,7 +609,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #right-col{{width:200px;display:flex;flex-direction:column;gap:8px}}
 #board-container{{position:relative;width:100%;padding-bottom:69%;border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}}
-.token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none}}
+.token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
 #token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
 #token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
@@ -703,8 +712,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 <script>
 (function(){{
   const d=JSON.parse(document.getElementById('data-script').textContent);
-  document.getElementById('board-img').src=d.image;
   const container=document.getElementById('board-container');
+  const boardImg=document.getElementById('board-img');
   const tokenPlayer=document.getElementById('token-player');
   const tokenBinbou=document.getElementById('token-binbou');
   const label=document.getElementById('station-label');
@@ -732,21 +741,31 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     document.getElementById('binbou-txt').textContent=d.binbou_attached?'👿 밀착 중!':dist+'칸 뒤';
   }}
 
-  d.stations.forEach((name,i)=>{{
-    const pt=d.points[name];if(!pt)return;
-    const dot=document.createElement('div');
-    let cls='sdot ';
-    if(i===d.goal_index)cls+='sdot-goal';
-    else if(d.squareTypes[name])cls+='sdot-'+d.squareTypes[name];
-    else cls+='sdot-normal';
-    if(i===d.position)cls+=' sdot-active';
-    dot.className=cls;dot.style.left=pt.x+'%';dot.style.top=pt.y+'%';dot.title=name;
-    container.appendChild(dot);
-  }});
+  function getContainerSize(){{
+    const r=container.getBoundingClientRect();
+    return {{w:r.width||container.offsetWidth||800,h:r.height||container.offsetHeight||552}};
+  }}
 
-  function placeToken(el,pt,showLabel,labelName){{
-    el.style.left=pt.x+'%';el.style.top=pt.y+'%';
-    if(showLabel&&labelName){{label.textContent=labelName;label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
+  function placeTokenAt(el,xPct,yPct){{
+    el.style.left=xPct+'%';
+    el.style.top=yPct+'%';
+  }}
+
+  function drawDots(){{
+    d.stations.forEach((name,i)=>{{
+      const pt=d.points[name];if(!pt)return;
+      const dot=document.createElement('div');
+      let cls='sdot ';
+      if(i===d.goal_index)cls+='sdot-goal';
+      else if(d.squareTypes[name])cls+='sdot-'+d.squareTypes[name];
+      else cls+='sdot-normal';
+      if(i===d.position)cls+=' sdot-active';
+      dot.className=cls;
+      dot.style.left=pt.x+'%';
+      dot.style.top=pt.y+'%';
+      dot.title=name;
+      container.appendChild(dot);
+    }});
   }}
 
   const DICE_DOTS={{1:[[.5,.5]],2:[[.25,.25],[.75,.75]],3:[[.25,.25],[.5,.5],[.75,.75]],4:[[.25,.25],[.75,.25],[.25,.75],[.75,.75]],5:[[.25,.25],[.75,.25],[.5,.5],[.25,.75],[.75,.75]],6:[[.25,.2],[.75,.2],[.25,.5],[.75,.5],[.25,.8],[.75,.8]]}};
@@ -791,7 +810,11 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     const last=ctrl[ctrl.length-2];result.push({{x:last.x,y:last.y}});return result;
   }}
   function animateToken(pathIndices,doneCallback){{
-    if(!pathIndices||pathIndices.length<2){{const pt=d.points[d.stations[d.position]];if(pt)placeToken(tokenPlayer,pt,true,d.stations[d.position]);doneCallback&&doneCallback();return;}}
+    if(!pathIndices||pathIndices.length<2){{
+      const pt=d.points[d.stations[d.position]];
+      if(pt)placeTokenAt(tokenPlayer,pt.x,pt.y);
+      doneCallback&&doneCallback();return;
+    }}
     const ctrl=buildSpline(pathIndices);
     const SAMPLES=Math.max(60,pathIndices.length*20);
     const curve=sampleSpline(ctrl,SAMPLES);
@@ -802,10 +825,17 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       const elapsed=now-t0,rawT=Math.min(elapsed/TOTAL_MS,1),eased=easeInOut5(rawT);
       const idx=Math.min(Math.floor(eased*(curve.length-1)),curve.length-1);
       const pt=curve[idx];
-      tokenPlayer.style.left=pt.x+'%';tokenPlayer.style.top=pt.y+'%';
-      if(rawT>0.8){{const fp=d.points[finalName];if(fp){{label.textContent=finalName;label.style.left=fp.x+'%';label.style.top=fp.y+'%';label.style.display='block';}}}}
+      placeTokenAt(tokenPlayer,pt.x,pt.y);
+      if(rawT>0.8){{
+        const fp=d.points[finalName];
+        if(fp){{label.textContent=finalName;label.style.left=fp.x+'%';label.style.top=fp.y+'%';label.style.display='block';}}
+      }}
       if(rawT<1)requestAnimationFrame(frame);
-      else{{const snap=d.points[finalName];if(snap)placeToken(tokenPlayer,snap,true,finalName);doneCallback&&doneCallback();}}
+      else{{
+        const snap=d.points[finalName];
+        if(snap){{placeTokenAt(tokenPlayer,snap.x,snap.y);label.textContent=finalName;label.style.left=snap.x+'%';label.style.top=snap.y+'%';label.style.display='block';}}
+        doneCallback&&doneCallback();
+      }}
     }}
     requestAnimationFrame(frame);
   }}
@@ -845,37 +875,58 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   if(d.playSound==='correct')runConfetti();
   if(d.playSound==='wrong')runWrongAnim();
 
-  const ev=d.event,hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
-  if(d.binbou_pos>=0){{tokenBinbou.style.display='flex';const bpt=d.points[d.stations[d.binbou_pos]];if(bpt){{tokenBinbou.style.left=bpt.x+'%';tokenBinbou.style.top=bpt.y+'%';}}}}
-  if(hasMove&&ev.dice){{
-    const startPt=d.points[d.stations[ev.path_indices[0]]];if(startPt)placeToken(tokenPlayer,startPt,false,null);
-    runDiceAnim(ev.dice,()=>{{
-      animateToken(ev.path_indices,()=>{{
-        if(d.binbou_pos>=0){{const bpt2=d.points[d.stations[d.binbou_pos]];if(bpt2){{tokenBinbou.style.transition='left .7s cubic-bezier(.25,.46,.45,.94),top .7s cubic-bezier(.25,.46,.45,.94)';tokenBinbou.style.left=bpt2.x+'%';tokenBinbou.style.top=bpt2.y+'%';}}}}
+  function initBoard(){{
+    drawDots();
+    const ev=d.event,hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
+    if(d.binbou_pos>=0){{
+      tokenBinbou.style.display='flex';
+      const bpt=d.points[d.stations[d.binbou_pos]];
+      if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+    }}
+    if(hasMove&&ev.dice){{
+      const startPt=d.points[d.stations[ev.path_indices[0]]];
+      if(startPt)placeTokenAt(tokenPlayer,startPt.x,startPt.y);
+      runDiceAnim(ev.dice,()=>{{
+        animateToken(ev.path_indices,()=>{{
+          if(d.binbou_pos>=0){{
+            const bpt2=d.points[d.stations[d.binbou_pos]];
+            if(bpt2){{
+              tokenBinbou.style.transition='left .7s ease,top .7s ease';
+              placeTokenAt(tokenBinbou,bpt2.x,bpt2.y);
+            }}
+          }}
+        }});
       }});
-    }});
-  }}else{{const pt=d.points[d.stations[d.position]];if(pt)placeToken(tokenPlayer,pt,true,d.stations[d.position]);}}
-
-  const logEl=document.getElementById('event-log');
-  (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
-  if(d.winner){{winOverlay.classList.add('show');document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';}}
-  if(d.soundEnabled&&d.playSound){{
-    try{{
-      const actx=new(window.AudioContext||window.webkitAudioContext)();
-      function beep(f,dur,type='sine',vol=0.25){{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);o.start();o.stop(actx.currentTime+dur);}}
-      if(d.playSound==='dice'){{beep(440,.1);setTimeout(()=>beep(660,.1),100);}}
-      if(d.playSound==='correct'){{beep(523,.1);setTimeout(()=>beep(659,.1),100);setTimeout(()=>beep(784,.25),200);}}
-      if(d.playSound==='wrong'){{beep(180,.35,'sawtooth',.2);}}
-      if(d.playSound==='win'){{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.3),i*150));}}
-    }}catch(e){{}}
+    }}else{{
+      const pt=d.points[d.stations[d.position]];
+      if(pt){{placeTokenAt(tokenPlayer,pt.x,pt.y);label.textContent=d.stations[d.position];label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
+    }}
+    const logEl=document.getElementById('event-log');
+    (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
+    if(d.winner){{winOverlay.classList.add('show');document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';}}
+    if(d.soundEnabled&&d.playSound){{
+      try{{
+        const actx=new(window.AudioContext||window.webkitAudioContext)();
+        function beep(f,dur,type='sine',vol=0.25){{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);o.start();o.stop(actx.currentTime+dur);}}
+        if(d.playSound==='dice'){{beep(440,.1);setTimeout(()=>beep(660,.1),100);}}
+        if(d.playSound==='correct'){{beep(523,.1);setTimeout(()=>beep(659,.1),100);setTimeout(()=>beep(784,.25),200);}}
+        if(d.playSound==='wrong'){{beep(180,.35,'sawtooth',.2);}}
+        if(d.playSound==='win'){{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.3),i*150));}}
+      }}catch(e){{}}
+    }}
   }}
+
+  // 이미지 로드 후 보드 초기화
+  boardImg.src=d.image;
+  if(boardImg.complete){{initBoard();}}
+  else{{boardImg.onload=initBoard;boardImg.onerror=()=>{{console.error('이미지 로드 실패');initBoard();}};}}
 }})();
 </script>
 </body></html>"""
 
     st.session_state.play_sound      = None
     st.session_state.animation_event = None
-    components.html(html, height=800, scrolling=False)
+    components.html(html, height=820, scrolling=False)
 
 
 # ═══════════════════════════════════════════════════
@@ -1011,4 +1062,32 @@ with st.sidebar:
         st.caption(f"🎯 목적지: **{st.session_state.destination}**")
 
     with st.expander("🗺️ 칸 종류 설명"):
-        st.caption
+        st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
+        st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·빈곤신)")
+        st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
+        st.caption("💜 **함정 칸** — 빈곤신 소환!")
+        st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
+
+
+# ═══════════════════════════════════════════════════
+#  MAIN
+# ═══════════════════════════════════════════════════
+st.markdown(
+    "<h2 style='margin-bottom:4px'>🚃 지하철 모모테츠 — 서울 2호선</h2>"
+    "<p style='color:#aaa;font-size:13px;margin-bottom:8px'>성수역 출발 → 건대입구역 도착 🏁</p>",
+    unsafe_allow_html=True
+)
+
+msg   = st.session_state.last_message
+phase = st.session_state.game_phase
+if phase == "game_over":
+    st.success(msg)
+elif phase == "answering_quiz":
+    st.warning(msg)
+elif phase == "waiting_penalty_roll":
+    st.error(msg)
+else:
+    st.info(msg)
+
+map_bytes, is_jpg = get_map_bytes()
+render_board(map_bytes, is_jpg)
