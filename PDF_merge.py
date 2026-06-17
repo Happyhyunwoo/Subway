@@ -7,7 +7,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="지하철 모모테츠",
+    page_title="지하철 2호선 게임",
     page_icon="🚃",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -76,20 +76,20 @@ BLUE_EVENTS = [
     {"msg": "💰 행운! 점수 +20점!", "score": 20},
     {"msg": "🎁 아이템 카드 획득! 다음 이동 2배 카드!", "item": "double_move"},
     {"msg": "⚡ 급행열차! 주사위를 한 번 더 굴립니다!", "extra_roll": True},
-    {"msg": "🌟 럭키! 빈곤신이 3칸 뒤로 물러납니다!", "push_binbou": 3},
+    {"msg": "🌟 럭키! 먹보유령이 3칸 뒤로 물러납니다!", "push_binbou": 3},
     {"msg": "🎶 축제! 점수 +15점 + 추가 주사위!", "score": 15, "extra_roll": True},
 ]
 
 RED_EVENTS = [
     {"msg": "💸 사건 발생! 점수 -10점!", "score": -10},
     {"msg": "🚧 공사 중! 2칸 후퇴!", "move": -2},
-    {"msg": "😈 빈곤신 접근! 빈곤신이 5칸 앞으로 이동!", "push_binbou": -5},
+    {"msg": "😈 먹보유령 접근! 먹보유령이 5칸 앞으로 이동!", "push_binbou": -5},
     {"msg": "⛔ 운행 중단! 이번 턴 퀴즈 2문제!", "double_quiz": True},
     {"msg": "🌧️ 폭우! 1칸 뒤로 이동!", "move": -1},
 ]
 
 TRAP_EVENTS = [
-    {"msg": "👿 빈곤신 등장! 붙잡혔습니다! 점수 -20점!", "score": -20, "binbou_attach": True},
+    {"msg": "👿 먹보유령 등장! 붙잡혔습니다! 점수 -20점!", "score": -20, "binbou_attach": True},
 ]
 
 ITEMS = {
@@ -345,7 +345,7 @@ def move_binbou(steps):
     st.session_state.binbou_pos = bp
     if bp >= st.session_state.position and bp >= 0:
         st.session_state.binbou_attached = True
-        add_event_log("👿 빈곤신이 따라붙었습니다!")
+        add_event_log("👿 먹보유령이 따라붙었습니다!")
 
 
 def apply_square_event(station_name, pos):
@@ -368,7 +368,7 @@ def apply_square_event(station_name, pos):
             add_item(ev["item"])
         if ev.get("push_binbou", 0) > 0:
             move_binbou(-ev["push_binbou"])
-            messages.append(f"📍 빈곤신 {ev['push_binbou']}칸 후퇴!")
+            messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
 
     elif sq == "red":
         if st.session_state.shield_active:
@@ -416,7 +416,7 @@ def apply_square_event(station_name, pos):
 
     if st.session_state.binbou_attached:
         st.session_state.score = max(0, st.session_state.score - 5)
-        messages.append("👿 빈곤신 밀착 중... -5점!")
+        messages.append("👿 먹보유령 밀착 중... -5점!")
 
     return "\n\n".join(messages) if messages else None, extra_roll, double_quiz
 
@@ -437,7 +437,7 @@ def move_forward():
         move_binbou(max(1, dice - 2))
     elif st.session_state.turns >= 5:
         st.session_state.binbou_pos = max(0, new_pos - 8)
-        add_event_log("👿 빈곤신이 등장했습니다!")
+        add_event_log("👿 먹보유령이 등장했습니다!")
 
     path_indices = list(range(old_pos, new_pos + 1))
     did_win = new_pos >= GOAL_INDEX
@@ -688,7 +688,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="stat-row"><span>목적지</span><span class="stat-val" id="s-dest">0회</span></div>
     </div>
     <div class="panel">
-      <div class="panel-title">👿 빈곤신 거리</div>
+      <div class="panel-title">👿 먹보유령 거리</div>
       <div id="binbou-gauge-wrap" style="background:rgba(255,255,255,.08);border-radius:6px;height:16px;overflow:hidden">
         <div id="binbou-gauge" style="height:100%;background:linear-gradient(90deg,#8e44ad,#e74c3c);transition:width .5s;width:0%"></div>
       </div>
@@ -933,7 +933,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #  SIDEBAR
 # ═══════════════════════════════════════════════════
 with st.sidebar:
-    st.markdown("## 🚃 지하철 모모테츠")
+    st.markdown("## 🚃 지하철 2호선 게임")
     st.caption("서울 2호선 · 1인용 · 성수 → 건대입구")
 
     st.session_state.player_name = st.text_input(
@@ -1048,7 +1048,7 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 🎯 목적지 카드 달성 시 +50점
-- 👿 빈곤신에게 붙잡히지 않도록!
+- 👿 먹보유령에게 붙잡히지 않도록!
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
@@ -1063,9 +1063,9 @@ with st.sidebar:
 
     with st.expander("🗺️ 칸 종류 설명"):
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
-        st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·빈곤신)")
+        st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·먹보유령)")
         st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 빈곤신 소환!")
+        st.caption("💜 **함정 칸** — 먹보유령 소환!")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
 
@@ -1073,7 +1073,7 @@ with st.sidebar:
 #  MAIN
 # ═══════════════════════════════════════════════════
 st.markdown(
-    "<h2 style='margin-bottom:4px'>🚃 지하철 모모테츠 — 서울 2호선</h2>"
+    "<h2 style='margin-bottom:4px'>🚃 지하철 2호선 게임 — 서울 2호선</h2>"
     "<p style='color:#aaa;font-size:13px;margin-bottom:8px'>성수역 출발 → 건대입구역 도착 🏁</p>",
     unsafe_allow_html=True
 )
