@@ -100,6 +100,7 @@ ITEMS = {
 }
 
 DEST_CANDIDATES = ["강남", "홍대입구", "왕십리", "선릉", "시청", "을지로입구", "합정", "교대"]
+QUIZ_CATEGORIES = ["수학", "국어", "상식", "과학", "영어", "수수께끼"]
 
 QUIZZES = [
     # ══════════════ 수학 ══════════════
@@ -225,6 +226,37 @@ QUIZZES = [
      'options': ['구름', '번개', '무지개', '레인코트'],  'answer': 2},
     {'category': '영어', 'question': "'1, 2, 3'을 영어로 세면?",
      'options': ['one, two, three', 'uno, dos, tres', 'ichi, ni, san', 'han, dul, set'],  'answer': 0},
+    # ══════════════ 수수께끼 ══════════════
+    {'category': '수수께끼', 'question': '먹을수록 커지고 물을 마실수록 작아지는 것은 무엇일까요?',
+     'options': ['불', '구름', '나무', '풍선'], 'answer': 0},
+    {'category': '수수께끼', 'question': '문은 문인데 사람이 드나들 수 없는 문은 무엇일까요?',
+     'options': ['대문', '창문', '소문', '정문'], 'answer': 2},
+    {'category': '수수께끼', 'question': '다리는 네 개지만 걸을 수 없는 것은 무엇일까요?',
+     'options': ['강아지', '책상', '고양이', '사자'], 'answer': 1},
+    {'category': '수수께끼', 'question': '이빨은 많지만 음식을 먹지 못하는 것은 무엇일까요?',
+     'options': ['상어', '빗', '악어', '호랑이'], 'answer': 1},
+    {'category': '수수께끼', 'question': '목은 있지만 머리가 없는 것은 무엇일까요?',
+     'options': ['병', '기린', '사람', '거북이'], 'answer': 0},
+    {'category': '수수께끼', 'question': '눈이 하나 있지만 볼 수 없는 것은 무엇일까요?',
+     'options': ['외눈박이', '바늘', '망원경', '카메라'], 'answer': 1},
+    {'category': '수수께끼', 'question': '손은 있지만 박수를 칠 수 없는 것은 무엇일까요?',
+     'options': ['인형', '시계', '로봇', '장갑'], 'answer': 1},
+    {'category': '수수께끼', 'question': '비가 올 때 활짝 펴지는 꽃은 무엇일까요?',
+     'options': ['장미', '민들레', '우산', '해바라기'], 'answer': 2},
+    {'category': '수수께끼', 'question': '항상 나를 따라오지만 잡을 수 없는 것은 무엇일까요?',
+     'options': ['그림자', '강아지', '친구', '바람개비'], 'answer': 0},
+    {'category': '수수께끼', 'question': '말하면 사라져 버리는 것은 무엇일까요?',
+     'options': ['노래', '비밀', '메아리', '웃음'], 'answer': 1},
+    {'category': '수수께끼', 'question': '글씨를 지울수록 점점 작아지는 것은 무엇일까요?',
+     'options': ['연필', '공책', '지우개', '책상'], 'answer': 2},
+    {'category': '수수께끼', 'question': '한 번 지나가면 다시 돌아오지 않는 것은 무엇일까요?',
+     'options': ['시간', '기차', '공', '자동차'], 'answer': 0},
+    {'category': '수수께끼', 'question': '많아질수록 앞이 잘 보이지 않는 것은 무엇일까요?',
+     'options': ['햇빛', '어둠', '안경', '창문'], 'answer': 1},
+    {'category': '수수께끼', 'question': '땅에서 태어나 하늘로 올라가 사라지는 것은 무엇일까요?',
+     'options': ['연기', '돌', '나무', '강'], 'answer': 0},
+    {'category': '수수께끼', 'question': '얼굴과 두 손은 있지만 입과 발이 없는 것은 무엇일까요?',
+     'options': ['인형', '시계', '사진', '로봇'], 'answer': 1},
 ]
 
 
@@ -271,7 +303,7 @@ def start_game():
     st.session_state.player_name  = name
     st.session_state.game_phase   = "ready_to_roll"
     st.session_state.last_message = (
-        f"🚃 {name}님, 출발! 건대입구역을 향해 달립니다!\n"
+        f"🚃 {name}님, 출발! {GOAL_STATION}역을 향해 달립니다!\n"
         f"🎯 현재 목적지: {st.session_state.destination}"
     )
 
@@ -286,8 +318,8 @@ def get_map_bytes():
 
 
 def selected_categories():
-    cats = st.session_state.get("selected_categories", ["수학", "국어", "상식", "과학", "영어"])
-    return cats or ["수학", "국어", "상식", "과학", "영어"]
+    cats = st.session_state.get("selected_categories", QUIZ_CATEGORIES)
+    return cats or QUIZ_CATEGORIES
 
 
 def get_random_quiz():
@@ -315,16 +347,20 @@ def add_event_log(msg):
 
 
 def add_item(item_key):
+    """아이템을 손패에 추가하고 성공 여부를 반환합니다."""
     hand = st.session_state.hand_items
-    if len(hand) < 3:
-        hand.append(item_key)
-        add_event_log(f"🃏 아이템 획득: {ITEMS[item_key]['name']}")
+    if len(hand) >= 3:
+        add_event_log("🎒 아이템 보관함이 가득 찼습니다!")
+        return False
+    hand.append(item_key)
+    add_event_log(f"🃏 아이템 획득: {ITEMS[item_key]['name']}")
+    return True
 
 
 def roll_dice_value(use_item=False):
     streak = st.session_state.get("correct_streak", 0)
-    bonus  = st.session_state.get("bonus_dice", 0)
-    dice   = random.randint(1, 6)
+    bonus = st.session_state.get("bonus_dice", 0)
+    dice = random.randint(1, 6)
     if streak >= 3 and random.random() < 0.2:
         dice = max(dice, random.randint(1, 6))
     if use_item or st.session_state.active_item == "double_move":
@@ -338,21 +374,57 @@ def roll_dice_value(use_item=False):
     return dice
 
 
+def build_path(start_pos, end_pos):
+    """두 역 사이의 인덱스 경로를 양방향으로 생성합니다."""
+    step = 1 if end_pos >= start_pos else -1
+    return list(range(start_pos, end_pos + step, step))
+
+
+def sync_binbou_attachment(log_change=True):
+    """현재 위치를 기준으로 먹보유령의 부착 상태를 동기화합니다."""
+    was_attached = st.session_state.binbou_attached
+    bp = st.session_state.binbou_pos
+    now_attached = bp >= 0 and bp >= st.session_state.position
+    st.session_state.binbou_attached = now_attached
+
+    if log_change and now_attached != was_attached:
+        if now_attached:
+            add_event_log("👿 먹보유령이 따라붙었습니다!")
+        else:
+            add_event_log("💨 먹보유령과 거리가 벌어졌습니다!")
+    return now_attached
+
+
 def move_binbou(steps):
-    bp  = st.session_state.binbou_pos
-    bp += steps
-    bp  = max(-8, min(bp, GOAL_INDEX))
-    st.session_state.binbou_pos = bp
-    if bp >= st.session_state.position and bp >= 0:
-        st.session_state.binbou_attached = True
-        add_event_log("👿 먹보유령이 따라붙었습니다!")
+    bp = st.session_state.binbou_pos + steps
+    st.session_state.binbou_pos = max(-8, min(bp, GOAL_INDEX))
+    sync_binbou_attachment()
+
+
+def apply_destination_reward(station_name, messages):
+    """칸 종류와 무관하게 목적지 도착 보상을 적용합니다."""
+    if station_name != st.session_state.destination:
+        return
+
+    st.session_state.score += 50
+    st.session_state.dest_reached += 1
+    add_event_log(f"🎯 목적지 {station_name} 도달! +50점!")
+    messages.append(f"🎯 목적지 {station_name}에 도착! +50점 획득!")
+
+    candidates = [d for d in DEST_CANDIDATES if d != station_name]
+    if candidates:
+        st.session_state.destination = random.choice(candidates)
+        messages.append(f"📌 새 목적지: {st.session_state.destination}")
 
 
 def apply_square_event(station_name, pos):
-    sq       = SQUARE_TYPES.get(station_name, "normal")
+    sq = SQUARE_TYPES.get(station_name, "normal")
     messages = []
-    extra_roll  = False
     double_quiz = False
+
+    # 목적지 도착은 칸 종류와 독립적으로 판정합니다.
+    reached_destination = station_name == st.session_state.destination
+    apply_destination_reward(station_name, messages)
 
     if sq == "blue":
         ev = random.choice(BLUE_EVENTS)
@@ -360,12 +432,11 @@ def apply_square_event(station_name, pos):
         if ev.get("score"):
             st.session_state.score += ev["score"]
         if ev.get("extra_roll"):
-            extra_roll = True
             st.session_state.extra_roll = True
         if ev.get("bonus_dice"):
             st.session_state.bonus_dice += ev["bonus_dice"]
-        if ev.get("item"):
-            add_item(ev["item"])
+        if ev.get("item") and not add_item(ev["item"]):
+            messages[-1] = "🎒 아이템 보관함이 가득 차 카드를 받지 못했습니다."
         if ev.get("push_binbou", 0) > 0:
             move_binbou(-ev["push_binbou"])
             messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
@@ -381,8 +452,9 @@ def apply_square_event(station_name, pos):
             if ev.get("score"):
                 st.session_state.score = max(0, st.session_state.score + ev["score"])
             if ev.get("move"):
-                new_pos = max(0, pos + ev["move"])
+                new_pos = max(0, min(pos + ev["move"], GOAL_INDEX))
                 st.session_state.position = new_pos
+                sync_binbou_attachment()
                 messages.append(f"📍 → {STATIONS[new_pos]}역으로 이동!")
             if ev.get("double_quiz"):
                 double_quiz = True
@@ -390,20 +462,14 @@ def apply_square_event(station_name, pos):
                 move_binbou(-ev["push_binbou"])
 
     elif sq == "star":
-        if station_name == st.session_state.destination:
-            st.session_state.score      += 50
-            st.session_state.dest_reached += 1
-            add_event_log(f"🎯 목적지 {station_name} 도달! +50점!")
-            messages.append(f"🎯 목적지 {station_name}에 도착! +50점 획득!")
-            new_dest = random.choice([d for d in DEST_CANDIDATES if d != station_name])
-            st.session_state.destination = new_dest
-            messages.append(f"📌 새 목적지: {new_dest}")
-        else:
+        if not reached_destination:
             messages.append(f"⭐ 목적지 카드 칸! 현재 목적지: {st.session_state.destination}")
         if random.random() < 0.4:
             item = random.choice(list(ITEMS.keys()))
-            add_item(item)
-            messages.append(f"🃏 보너스 아이템: {ITEMS[item]['name']}!")
+            if add_item(item):
+                messages.append(f"🃏 보너스 아이템: {ITEMS[item]['name']}!")
+            else:
+                messages.append("🎒 보관함이 가득 차 보너스 아이템을 받지 못했습니다.")
 
     elif sq == "trap":
         ev = random.choice(TRAP_EVENTS)
@@ -411,113 +477,135 @@ def apply_square_event(station_name, pos):
         if ev.get("score"):
             st.session_state.score = max(0, st.session_state.score + ev["score"])
         if ev.get("binbou_attach"):
-            st.session_state.binbou_attached = True
-            move_binbou(0)
+            # 미등장 상태에서도 플레이어 위치에 유령을 즉시 소환합니다.
+            st.session_state.binbou_pos = st.session_state.position
+            sync_binbou_attachment()
 
+    # 이벤트 처리 후 최종 위치로 부착 여부를 다시 계산합니다.
+    sync_binbou_attachment(log_change=False)
     if st.session_state.binbou_attached:
         st.session_state.score = max(0, st.session_state.score - 5)
         messages.append("👿 먹보유령 밀착 중... -5점!")
 
-    return "\n\n".join(messages) if messages else None, extra_roll, double_quiz
+    return "\n\n".join(messages) if messages else None, double_quiz
 
 
 def move_forward():
     if st.session_state.game_phase != "ready_to_roll":
         return
-    use_double = st.session_state.active_item == "double_move"
-    old_pos = st.session_state.position
-    dice    = roll_dice_value(use_item=use_double)
-    new_pos = min(old_pos + dice, GOAL_INDEX)
 
-    st.session_state.position        = new_pos
+    old_pos = st.session_state.position
+    dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
+    landing_pos = min(old_pos + dice, GOAL_INDEX)
+
+    st.session_state.position = landing_pos
     st.session_state.last_dice_value = dice
-    st.session_state.turns          += 1
+    st.session_state.turns += 1
 
     if st.session_state.binbou_pos >= 0:
         move_binbou(max(1, dice - 2))
     elif st.session_state.turns >= 5:
-        st.session_state.binbou_pos = max(0, new_pos - 8)
+        st.session_state.binbou_pos = max(0, landing_pos - 8)
+        sync_binbou_attachment(log_change=False)
         add_event_log("👿 먹보유령이 등장했습니다!")
 
-    path_indices = list(range(old_pos, new_pos + 1))
-    did_win = new_pos >= GOAL_INDEX
-
-    st.session_state.animation_event = {
-        "id": random.randint(100000, 999999),
-        "position":     new_pos,
-        "binbou_pos":   st.session_state.binbou_pos,
-        "path_indices": path_indices,
-        "dice":         dice,
-        "win":          did_win,
-        "sound":        "win" if did_win else "dice",
-    }
-
+    did_win = landing_pos >= GOAL_INDEX
     if did_win:
-        st.session_state.game_phase   = "game_over"
-        st.session_state.winner       = True
+        st.session_state.animation_event = {
+            "position": landing_pos,
+            "binbou_pos": st.session_state.binbou_pos,
+            "path_indices": build_path(old_pos, landing_pos),
+            "dice": dice,
+            "win": True,
+        }
+        st.session_state.play_sound = "win"
+        st.session_state.game_phase = "game_over"
+        st.session_state.winner = True
         st.session_state.last_message = (
-            f"🎉 {st.session_state.player_name}님이 건대입구역에 도착했습니다!\n"
+            f"🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!\n"
             f"총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점\n"
             f"목적지 도달: {st.session_state.dest_reached}회"
         )
         return
 
-    station_name = STATIONS[new_pos]
-    ev_msg, extra_roll, double_quiz = apply_square_event(station_name, new_pos)
-    add_event_log(f"📍 {station_name}역 도착 (주사위 {dice})")
+    landing_station = STATIONS[landing_pos]
+    ev_msg, double_quiz = apply_square_event(landing_station, landing_pos)
+    final_pos = st.session_state.position
+    final_station = STATIONS[final_pos]
+
+    # 주사위 도착역까지 이동한 뒤 후퇴 이벤트가 있으면 최종역까지 이어서 이동합니다.
+    path_indices = build_path(old_pos, landing_pos)
+    if final_pos != landing_pos:
+        path_indices.extend(build_path(landing_pos, final_pos)[1:])
+
+    st.session_state.animation_event = {
+        "position": final_pos,
+        "binbou_pos": st.session_state.binbou_pos,
+        "path_indices": path_indices,
+        "dice": dice,
+        "win": False,
+    }
+    st.session_state.play_sound = "dice"
+    add_event_log(f"📍 {landing_station}역 도착 (주사위 {dice})")
 
     base_msg = (
-        f"🎲 주사위 **{dice}** → **{station_name}**역 도착!\n"
-        f"({new_pos + 1}/{len(STATIONS)}역 · 점수: {st.session_state.score})"
+        f"🎲 주사위 **{dice}** → **{landing_station}**역 도착!\n"
+        f"({landing_pos + 1}/{len(STATIONS)}역 · 점수: {st.session_state.score})"
     )
     if ev_msg:
         base_msg += f"\n\n{ev_msg}"
+    if final_pos != landing_pos:
+        base_msg += f"\n\n📌 현재 위치: **{final_station}**역"
 
     if double_quiz:
-        st.session_state.quiz_queue   = [get_random_quiz(), get_random_quiz()]
+        st.session_state.quiz_queue = [get_random_quiz(), get_random_quiz()]
         st.session_state.current_quiz = st.session_state.quiz_queue.pop(0)
-        st.session_state.game_phase   = "answering_quiz"
+        st.session_state.game_phase = "answering_quiz"
         base_msg += "\n\n📝 퀴즈 2문제 도전!"
     else:
+        st.session_state.quiz_queue = []
         st.session_state.current_quiz = get_random_quiz()
-        st.session_state.game_phase   = "answering_quiz"
+        st.session_state.game_phase = "answering_quiz"
         base_msg += "\n\n📝 사이드바에서 퀴즈를 풀어 보세요!"
 
     st.session_state.last_message = base_msg
-    st.session_state.quiz_key    += 1
+    st.session_state.quiz_key += 1
 
 
 def move_backward():
     if st.session_state.game_phase != "waiting_penalty_roll":
         return
+
+    # 오답으로 중단된 연속 퀴즈와 추가 주사위는 다음 턴으로 넘기지 않습니다.
+    st.session_state.quiz_queue = []
+    st.session_state.extra_roll = False
+
     if "skip_penalty" in st.session_state.hand_items:
         st.session_state.hand_items.remove("skip_penalty")
-        st.session_state.game_phase   = "ready_to_roll"
+        st.session_state.game_phase = "ready_to_roll"
         st.session_state.last_message = "✨ 면제 카드 사용! 뒤로 가기 주사위 면제!\n\n다시 주사위를 굴려 보세요."
         add_event_log("✨ 면제 카드 발동!")
         return
 
     old_pos = st.session_state.position
-    dice    = random.randint(1, 4)
+    dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
-    st.session_state.position        = new_pos
+    st.session_state.position = new_pos
     st.session_state.last_dice_value = dice
-    st.session_state.current_quiz    = None
-    st.session_state.correct_streak  = 0
+    st.session_state.current_quiz = None
+    st.session_state.correct_streak = 0
     move_binbou(dice)
 
-    path_indices = list(range(old_pos, new_pos - 1, -1))
     st.session_state.animation_event = {
-        "id": random.randint(100000, 999999),
-        "position":     new_pos,
-        "binbou_pos":   st.session_state.binbou_pos,
-        "path_indices": path_indices,
-        "dice":         dice,
-        "win":          False,
-        "sound":        "wrong",
+        "position": new_pos,
+        "binbou_pos": st.session_state.binbou_pos,
+        "path_indices": build_path(old_pos, new_pos),
+        "dice": dice,
+        "win": False,
     }
+    st.session_state.play_sound = "wrong"
     add_event_log(f"😢 뒤로 -{dice}칸 → {STATIONS[new_pos]}역")
-    st.session_state.game_phase   = "ready_to_roll"
+    st.session_state.game_phase = "ready_to_roll"
     st.session_state.last_message = (
         f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!\n\n"
         f"다시 주사위를 굴려 보세요."
@@ -559,14 +647,17 @@ def submit_answer(answer):
         st.session_state.quiz_key += 1
     else:
         st.session_state.correct_streak = 0
-        st.session_state.play_sound     = "wrong"
-        st.session_state.game_phase     = "waiting_penalty_roll"
-        st.session_state.last_message   = (
+        st.session_state.play_sound = "wrong"
+        st.session_state.game_phase = "waiting_penalty_roll"
+        st.session_state.last_message = (
             f"❌ 정답은 **'{correct}'** 입니다.\n\n"
             f"사이드바에서 뒤로 가기 주사위를 굴려 주세요!"
         )
         st.session_state.current_quiz = None
+        st.session_state.quiz_queue = []
+        st.session_state.extra_roll = False
         add_event_log(f"❌ 오답! 정답: {correct}")
+
 
 
 def render_board(map_bytes, is_jpg):
@@ -607,8 +698,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #wrap{{display:flex;gap:10px;padding:8px;height:100vh}}
 #board-col{{flex:1;min-width:0}}
 #right-col{{width:200px;display:flex;flex-direction:column;gap:8px}}
-#board-container{{position:relative;width:100%;padding-bottom:69%;border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
-#board-img{{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:contain}}
+#board-container{{position:relative;width:100%;aspect-ratio:1340/1080;border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
+#board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
 .token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
 #token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
 #token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
@@ -739,11 +830,6 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     const dist=Math.max(0,pp-bp);
     document.getElementById('binbou-gauge').style.width=Math.max(0,100-dist*10)+'%';
     document.getElementById('binbou-txt').textContent=d.binbou_attached?'👿 밀착 중!':dist+'칸 뒤';
-  }}
-
-  function getContainerSize(){{
-    const r=container.getBoundingClientRect();
-    return {{w:r.width||container.offsetWidth||800,h:r.height||container.offsetHeight||552}};
   }}
 
   function placeTokenAt(el,xPct,yPct){{
@@ -944,7 +1030,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.subheader("📚 퀴즈 카테고리")
-    all_cats = ["수학", "국어", "상식", "과학", "영어"]
+    all_cats = QUIZ_CATEGORIES
     if "selected_categories" not in st.session_state:
         st.session_state.selected_categories = all_cats[:]
     for cat in all_cats:
@@ -971,13 +1057,13 @@ with st.sidebar:
     hand = st.session_state.hand_items
     if hand:
         st.subheader("🃏 보유 아이템")
-        for item_key in list(hand):
+        for item_slot, item_key in enumerate(list(hand)):
             item = ITEMS[item_key]
             col_a, col_b = st.columns([2, 1])
             with col_a:
                 st.caption(f"{item['name']}\n{item['desc']}")
             with col_b:
-                if st.button("사용", key=f"use_{item_key}_{st.session_state.quiz_key}", use_container_width=True):
+                if st.button("사용", key=f"use_{item_slot}_{item_key}_{st.session_state.quiz_key}", use_container_width=True):
                     if item_key == "double_move":
                         st.session_state.active_item = "double_move"
                         st.session_state.hand_items.remove(item_key)
@@ -1025,11 +1111,11 @@ with st.sidebar:
             st.subheader(title)
             if st.session_state.score_x2:
                 st.warning("💎 점수 2배 활성화! 정답 시 20점!")
-            cat_colors = {"수학": "🔵", "국어": "🟢", "상식": "🟡", "과학": "🟠", "영어": "🔴"}
+            cat_colors = {"수학": "🔵", "국어": "🟢", "상식": "🟡", "과학": "🟠", "영어": "🔴", "수수께끼": "🟣"}
             icon = cat_colors.get(quiz['category'], '⚪')
             st.info(f"{icon} [{quiz['category']}]\n\n**{quiz['question']}**")
-            for opt in quiz["options"]:
-                if st.button(opt, key=f"opt_{opt}_{st.session_state.quiz_key}", use_container_width=True):
+            for opt_idx, opt in enumerate(quiz["options"]):
+                if st.button(opt, key=f"opt_{quiz['quiz_id']}_{opt_idx}_{st.session_state.quiz_key}", use_container_width=True):
                     submit_answer(opt); st.rerun()
 
     elif phase == "game_over":
