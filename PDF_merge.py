@@ -269,6 +269,7 @@ def init_game(keep_name=True):
     st.session_state.position          = 0
     st.session_state.binbou_pos        = -8
     st.session_state.binbou_attached   = False
+    st.session_state.binbou_effect     = None
     st.session_state.game_phase        = "start"
     st.session_state.current_quiz      = None
     st.session_state.quiz_queue        = []
@@ -381,24 +382,71 @@ def build_path(start_pos, end_pos):
 
 
 def sync_binbou_attachment(log_change=True):
-    """현재 위치를 기준으로 먹보유령의 부착 상태를 동기화합니다."""
+    """현재 위치를 기준으로 유령의 부착 상태를 갱신합니다."""
     was_attached = st.session_state.binbou_attached
     bp = st.session_state.binbou_pos
     now_attached = bp >= 0 and bp >= st.session_state.position
-    st.session_state.binbou_attached = now_attached
 
+    # 유령이 플레이어를 추월하지 않고 같은 역에서 붙도록 고정합니다.
+    if now_attached:
+        st.session_state.binbou_pos = st.session_state.position
+
+    st.session_state.binbou_attached = now_attached
     if log_change and now_attached != was_attached:
         if now_attached:
-            add_event_log("👿 먹보유령이 따라붙었습니다!")
+            add_event_log("👿 먹보유령이 플레이어를 붙잡았습니다!")
         else:
-            add_event_log("💨 먹보유령과 거리가 벌어졌습니다!")
+            add_event_log("💨 먹보유령에게서 벗어났습니다!")
     return now_attached
 
 
 def move_binbou(steps):
     bp = st.session_state.binbou_pos + steps
     st.session_state.binbou_pos = max(-8, min(bp, GOAL_INDEX))
-    sync_binbou_attachment()
+    return sync_binbou_attachment()
+
+
+def show_binbou_effect(message, penalty, effect_type="caught"):
+    """먹보유령 효과를 점수, 로그, 보드 오버레이에 동시에 반영합니다."""
+    penalty = max(0, int(penalty))
+    if penalty:
+        st.session_state.score = max(0, st.session_state.score - penalty)
+    st.session_state.binbou_effect = {
+        "id": random.randint(100000, 999999),
+        "type": effect_type,
+        "message": message,
+        "penalty": penalty,
+    }
+    st.session_state.play_sound = "ghost"
+    add_event_log(message)
+
+
+def resolve_binbou_contact(was_attached, trap_penalty_already_applied=False):
+    """한 번의 이동이 끝난 뒤 접촉 여부를 판정하고 효과 문구를 반환합니다."""
+    now_attached = sync_binbou_attachment(log_change=False)
+
+    # 함정 칸의 -20점이 이미 적용된 경우에는 추가 감점을 하지 않습니다.
+    if now_attached and trap_penalty_already_applied:
+        message = "👿 먹보유령에게 붙잡혔습니다! 점수 -20점!"
+        show_binbou_effect(message, 0, "caught")
+        return message
+
+    if now_attached and not was_attached:
+        message = "👿 먹보유령에게 붙잡혔습니다! 점수 -10점!"
+        show_binbou_effect(message, 10, "caught")
+        return message
+
+    if now_attached and was_attached:
+        message = "👿 먹보유령이 따라붙어 있습니다. 점수 -5점!"
+        show_binbou_effect(message, 5, "drain")
+        return message
+
+    if was_attached and not now_attached:
+        message = "💨 먹보유령에게서 벗어났습니다!"
+        show_binbou_effect(message, 0, "escaped")
+        return message
+
+    return None
 
 
 def apply_destination_reward(station_name, messages):
@@ -421,6 +469,7 @@ def apply_square_event(station_name, pos):
     sq = SQUARE_TYPES.get(station_name, "normal")
     messages = []
     double_quiz = False
+    trap_penalty_applied = False
 
     # 목적지 도착은 칸 종류와 독립적으로 판정합니다.
     reached_destination = station_name == st.session_state.destination
@@ -476,18 +525,13 @@ def apply_square_event(station_name, pos):
         messages.append(ev["msg"])
         if ev.get("score"):
             st.session_state.score = max(0, st.session_state.score + ev["score"])
+            trap_penalty_applied = True
         if ev.get("binbou_attach"):
             # 미등장 상태에서도 플레이어 위치에 유령을 즉시 소환합니다.
             st.session_state.binbou_pos = st.session_state.position
-            sync_binbou_attachment()
+            sync_binbou_attachment(log_change=False)
 
-    # 이벤트 처리 후 최종 위치로 부착 여부를 다시 계산합니다.
-    sync_binbou_attachment(log_change=False)
-    if st.session_state.binbou_attached:
-        st.session_state.score = max(0, st.session_state.score - 5)
-        messages.append("👿 먹보유령 밀착 중... -5점!")
-
-    return "\n\n".join(messages) if messages else None, double_quiz
+    return "\n\n".join(messages) if messages else None, double_quiz, trap_penalty_applied
 
 
 def move_forward():
@@ -498,12 +542,21 @@ def move_forward():
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
 
+    was_attached = st.session_state.binbou_attached
+    st.session_state.binbou_effect = None
     st.session_state.position = landing_pos
     st.session_state.last_dice_value = dice
     st.session_state.turns += 1
 
     if st.session_state.binbou_pos >= 0:
-        move_binbou(max(1, dice - 2))
+        if was_attached:
+            # 붙잡힌 뒤에는 유령이 플레이어와 함께 이동합니다.
+            st.session_state.binbou_pos = landing_pos
+            sync_binbou_attachment(log_change=False)
+        else:
+            # 플레이어보다 0~3칸 더 움직여 실제로 따라잡을 수 있게 합니다.
+            ghost_steps = min(9, dice + random.randint(0, 3))
+            move_binbou(ghost_steps)
     elif st.session_state.turns >= 5:
         st.session_state.binbou_pos = max(0, landing_pos - 8)
         sync_binbou_attachment(log_change=False)
@@ -529,7 +582,11 @@ def move_forward():
         return
 
     landing_station = STATIONS[landing_pos]
-    ev_msg, double_quiz = apply_square_event(landing_station, landing_pos)
+    ev_msg, double_quiz, trap_penalty_applied = apply_square_event(landing_station, landing_pos)
+    contact_msg = resolve_binbou_contact(
+        was_attached,
+        trap_penalty_already_applied=trap_penalty_applied,
+    )
     final_pos = st.session_state.position
     final_station = STATIONS[final_pos]
 
@@ -545,7 +602,8 @@ def move_forward():
         "dice": dice,
         "win": False,
     }
-    st.session_state.play_sound = "dice"
+    if st.session_state.binbou_effect is None:
+        st.session_state.play_sound = "dice"
     add_event_log(f"📍 {landing_station}역 도착 (주사위 {dice})")
 
     base_msg = (
@@ -554,6 +612,8 @@ def move_forward():
     )
     if ev_msg:
         base_msg += f"\n\n{ev_msg}"
+    if contact_msg and (not ev_msg or contact_msg not in ev_msg):
+        base_msg += f"\n\n{contact_msg}"
     if final_pos != landing_pos:
         base_msg += f"\n\n📌 현재 위치: **{final_station}**역"
 
@@ -588,13 +648,20 @@ def move_backward():
         return
 
     old_pos = st.session_state.position
+    was_attached = st.session_state.binbou_attached
+    st.session_state.binbou_effect = None
     dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
     st.session_state.position = new_pos
     st.session_state.last_dice_value = dice
     st.session_state.current_quiz = None
     st.session_state.correct_streak = 0
-    move_binbou(dice)
+    if was_attached:
+        st.session_state.binbou_pos = new_pos
+        sync_binbou_attachment(log_change=False)
+    else:
+        move_binbou(dice)
+    contact_msg = resolve_binbou_contact(was_attached)
 
     st.session_state.animation_event = {
         "position": new_pos,
@@ -603,13 +670,16 @@ def move_backward():
         "dice": dice,
         "win": False,
     }
-    st.session_state.play_sound = "wrong"
+    if contact_msg is None:
+        st.session_state.play_sound = "wrong"
     add_event_log(f"😢 뒤로 -{dice}칸 → {STATIONS[new_pos]}역")
     st.session_state.game_phase = "ready_to_roll"
     st.session_state.last_message = (
-        f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!\n\n"
-        f"다시 주사위를 굴려 보세요."
+        f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!"
     )
+    if contact_msg:
+        st.session_state.last_message += f"\n\n{contact_msg}"
+    st.session_state.last_message += "\n\n다시 주사위를 굴려 보세요."
 
 
 def submit_answer(answer):
@@ -671,6 +741,7 @@ def render_board(map_bytes, is_jpg):
         "position":        st.session_state.position,
         "binbou_pos":      st.session_state.binbou_pos,
         "binbou_attached": st.session_state.binbou_attached,
+        "binbouEffect":    st.session_state.get("binbou_effect"),
         "goal_index":      GOAL_INDEX,
         "playerName":      st.session_state.player_name,
         "destination":     st.session_state.destination,
@@ -730,6 +801,12 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #wrong-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:45;border-radius:14px}}
 #wrong-overlay.show{{display:flex;animation:wrongShake .4s ease}}
 @keyframes wrongShake{{0%{{transform:translateX(0)}}15%{{transform:translateX(-10px)}}30%{{transform:translateX(10px)}}45%{{transform:translateX(-8px)}}60%{{transform:translateX(8px)}}75%{{transform:translateX(-4px)}}90%{{transform:translateX(4px)}}100%{{transform:translateX(0)}}}}
+#ghost-overlay{{display:none;position:absolute;inset:0;background:rgba(30,0,45,.78);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:48;border-radius:14px;text-align:center;padding:20px}}
+#ghost-overlay.show{{display:flex;animation:ghostFlash .55s ease}}
+#ghost-emoji{{font-size:6.5em;animation:ghostCatch .65s ease-out}}
+#ghost-txt{{color:#ff8cff;font-size:1.55em;font-weight:900;text-shadow:0 0 16px rgba(255,70,255,.9)}}
+@keyframes ghostFlash{{0%{{background:rgba(255,0,100,.15)}}40%{{background:rgba(60,0,90,.92)}}100%{{background:rgba(30,0,45,.78)}}}}
+@keyframes ghostCatch{{0%{{transform:scale(.2) rotate(-20deg);opacity:0}}60%{{transform:scale(1.35) rotate(8deg)}}100%{{transform:scale(1);opacity:1}}}}
 #wrong-emoji{{font-size:6em;animation:wrongBounce .5s ease-out}}
 @keyframes wrongBounce{{0%{{transform:scale(.2);opacity:0}}60%{{transform:scale(1.2)}}100%{{transform:scale(1);opacity:1}}}}
 #wrong-txt{{color:#ff6b6b;font-size:1.4em;font-weight:900;text-shadow:0 0 12px rgba(255,100,100,.8)}}
@@ -763,6 +840,10 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div id="wrong-overlay">
         <div id="wrong-emoji">😢</div>
         <div id="wrong-txt">아쉬워요...</div>
+      </div>
+      <div id="ghost-overlay">
+        <div id="ghost-emoji">👿</div>
+        <div id="ghost-txt">먹보유령에게 붙잡혔습니다!</div>
       </div>
       <div id="win-overlay">
         <div class="win-txt">🎉 건대입구 도착! 🎉</div>
@@ -816,6 +897,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const ctx2d=diceCanvas.getContext('2d');
   const confettiCanvas=document.getElementById('confetti-canvas');
   const wrongOverlay=document.getElementById('wrong-overlay');
+  const ghostOverlay=document.getElementById('ghost-overlay');
+  const ghostTxt=document.getElementById('ghost-txt');
 
   document.getElementById('s-score').textContent=d.score||0;
   document.getElementById('s-turns').textContent=d.turns||0;
@@ -957,6 +1040,13 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   }}
 
   function runWrongAnim(){{wrongOverlay.classList.add('show');setTimeout(()=>wrongOverlay.classList.remove('show'),1800);}}
+  function runGhostAnim(){{
+    const effect=d.binbouEffect||{{}};
+    ghostTxt.textContent=effect.message||'먹보유령 효과 발생!';
+    document.getElementById('ghost-emoji').textContent=effect.type==='escaped'?'💨':'👿';
+    ghostOverlay.classList.add('show');
+    setTimeout(()=>ghostOverlay.classList.remove('show'),2200);
+  }}
 
   if(d.playSound==='correct')runConfetti();
   if(d.playSound==='wrong')runWrongAnim();
@@ -981,11 +1071,13 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
               placeTokenAt(tokenBinbou,bpt2.x,bpt2.y);
             }}
           }}
+          if(d.binbouEffect)runGhostAnim();
         }});
       }});
     }}else{{
       const pt=d.points[d.stations[d.position]];
       if(pt){{placeTokenAt(tokenPlayer,pt.x,pt.y);label.textContent=d.stations[d.position];label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
+      if(d.binbouEffect)runGhostAnim();
     }}
     const logEl=document.getElementById('event-log');
     (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
@@ -997,6 +1089,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
         if(d.playSound==='dice'){{beep(440,.1);setTimeout(()=>beep(660,.1),100);}}
         if(d.playSound==='correct'){{beep(523,.1);setTimeout(()=>beep(659,.1),100);setTimeout(()=>beep(784,.25),200);}}
         if(d.playSound==='wrong'){{beep(180,.35,'sawtooth',.2);}}
+        if(d.playSound==='ghost'){{beep(150,.18,'sawtooth',.25);setTimeout(()=>beep(95,.45,'square',.2),140);}}
         if(d.playSound==='win'){{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.3),i*150));}}
       }}catch(e){{}}
     }}
@@ -1012,6 +1105,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 
     st.session_state.play_sound      = None
     st.session_state.animation_event = None
+    st.session_state.binbou_effect   = None
     components.html(html, height=820, scrolling=False)
 
 
