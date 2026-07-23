@@ -25,6 +25,7 @@ STATIONS = [
 ]
 GOAL_STATION = "건대입구"
 GOAL_INDEX   = len(STATIONS) - 1
+BINBOU_RESET_DISTANCE = 6
 
 ORIGINAL_WIDTH  = 1340
 ORIGINAL_HEIGHT = 1080
@@ -382,28 +383,35 @@ def build_path(start_pos, end_pos):
 
 
 def sync_binbou_attachment(log_change=True):
-    """현재 위치를 기준으로 유령의 부착 상태를 갱신합니다."""
+    """현재 위치를 기준으로 유령의 접촉 여부를 임시로 표시합니다."""
     was_attached = st.session_state.binbou_attached
     bp = st.session_state.binbou_pos
     now_attached = bp >= 0 and bp >= st.session_state.position
 
-    # 유령이 플레이어를 추월하지 않고 같은 역에서 붙도록 고정합니다.
+    # 접촉 순간에는 같은 역에 표시합니다. 접촉 효과 처리 후 6칸 뒤로 재배치됩니다.
     if now_attached:
         st.session_state.binbou_pos = st.session_state.position
 
     st.session_state.binbou_attached = now_attached
-    if log_change and now_attached != was_attached:
-        if now_attached:
-            add_event_log("👿 먹보유령이 플레이어를 붙잡았습니다!")
-        else:
-            add_event_log("💨 먹보유령에게서 벗어났습니다!")
+    if log_change and now_attached and not was_attached:
+        add_event_log("👿 먹보유령이 플레이어를 붙잡았습니다!")
     return now_attached
+
+
+def reset_binbou_after_catch():
+    """붙잡힘 효과가 끝난 뒤 유령을 플레이어보다 6칸 뒤로 보냅니다."""
+    st.session_state.binbou_pos = max(
+        -8,
+        st.session_state.position - BINBOU_RESET_DISTANCE,
+    )
+    st.session_state.binbou_attached = False
 
 
 def move_binbou(steps):
     bp = st.session_state.binbou_pos + steps
     st.session_state.binbou_pos = max(-8, min(bp, GOAL_INDEX))
-    return sync_binbou_attachment()
+    # 실제 감점과 재배치는 resolve_binbou_contact()에서 한 번만 처리합니다.
+    return sync_binbou_attachment(log_change=False)
 
 
 def show_binbou_effect(message, penalty, effect_type="caught"):
@@ -421,32 +429,31 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
     add_event_log(message)
 
 
-def resolve_binbou_contact(was_attached, trap_penalty_already_applied=False):
-    """한 번의 이동이 끝난 뒤 접촉 여부를 판정하고 효과 문구를 반환합니다."""
+def resolve_binbou_contact(was_attached=False, trap_penalty_already_applied=False):
+    """접촉 효과를 한 번 적용한 뒤 유령을 6칸 뒤에서 다시 출발시킵니다."""
     now_attached = sync_binbou_attachment(log_change=False)
+    if not now_attached:
+        # 이전 버전의 세션에 부착 상태가 남아 있더라도 지속시키지 않습니다.
+        st.session_state.binbou_attached = False
+        return None
 
     # 함정 칸의 -20점이 이미 적용된 경우에는 추가 감점을 하지 않습니다.
-    if now_attached and trap_penalty_already_applied:
-        message = "👿 먹보유령에게 붙잡혔습니다! 점수 -20점!"
-        show_binbou_effect(message, 0, "caught")
-        return message
+    if trap_penalty_already_applied:
+        penalty = 0
+        message = (
+            "👿 먹보유령에게 붙잡혔습니다! 점수 -20점! "
+            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+        )
+    else:
+        penalty = 10
+        message = (
+            "👿 먹보유령에게 붙잡혔습니다! 점수 -10점! "
+            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+        )
 
-    if now_attached and not was_attached:
-        message = "👿 먹보유령에게 붙잡혔습니다! 점수 -10점!"
-        show_binbou_effect(message, 10, "caught")
-        return message
-
-    if now_attached and was_attached:
-        message = "👿 먹보유령이 따라붙어 있습니다. 점수 -5점!"
-        show_binbou_effect(message, 5, "drain")
-        return message
-
-    if was_attached and not now_attached:
-        message = "💨 먹보유령에게서 벗어났습니다!"
-        show_binbou_effect(message, 0, "escaped")
-        return message
-
-    return None
+    show_binbou_effect(message, penalty, "caught")
+    reset_binbou_after_catch()
+    return message
 
 
 def apply_destination_reward(station_name, messages):
@@ -503,7 +510,7 @@ def apply_square_event(station_name, pos):
             if ev.get("move"):
                 new_pos = max(0, min(pos + ev["move"], GOAL_INDEX))
                 st.session_state.position = new_pos
-                sync_binbou_attachment()
+                sync_binbou_attachment(log_change=False)
                 messages.append(f"📍 → {STATIONS[new_pos]}역으로 이동!")
             if ev.get("double_quiz"):
                 double_quiz = True
@@ -542,21 +549,19 @@ def move_forward():
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
 
-    was_attached = st.session_state.binbou_attached
+    # 이전 실행에서 부착 상태가 남아 있어도 즉시 6칸 뒤에서 재출발시킵니다.
+    if st.session_state.binbou_attached:
+        reset_binbou_after_catch()
+    was_attached = False
     st.session_state.binbou_effect = None
     st.session_state.position = landing_pos
     st.session_state.last_dice_value = dice
     st.session_state.turns += 1
 
     if st.session_state.binbou_pos >= 0:
-        if was_attached:
-            # 붙잡힌 뒤에는 유령이 플레이어와 함께 이동합니다.
-            st.session_state.binbou_pos = landing_pos
-            sync_binbou_attachment(log_change=False)
-        else:
-            # 플레이어보다 0~3칸 더 움직여 실제로 따라잡을 수 있게 합니다.
-            ghost_steps = min(9, dice + random.randint(0, 3))
-            move_binbou(ghost_steps)
+        # 유령은 매 턴 다시 추격하며, 접촉하면 효과 후 즉시 6칸 뒤로 돌아갑니다.
+        ghost_steps = min(9, dice + random.randint(0, 3))
+        move_binbou(ghost_steps)
     elif st.session_state.turns >= 5:
         st.session_state.binbou_pos = max(0, landing_pos - 8)
         sync_binbou_attachment(log_change=False)
@@ -648,7 +653,10 @@ def move_backward():
         return
 
     old_pos = st.session_state.position
-    was_attached = st.session_state.binbou_attached
+    # 이전 실행에서 남은 부착 상태는 지속하지 않습니다.
+    if st.session_state.binbou_attached:
+        reset_binbou_after_catch()
+    was_attached = False
     st.session_state.binbou_effect = None
     dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
@@ -656,11 +664,7 @@ def move_backward():
     st.session_state.last_dice_value = dice
     st.session_state.current_quiz = None
     st.session_state.correct_streak = 0
-    if was_attached:
-        st.session_state.binbou_pos = new_pos
-        sync_binbou_attachment(log_change=False)
-    else:
-        move_binbou(dice)
+    move_binbou(dice)
     contact_msg = resolve_binbou_contact(was_attached)
 
     st.session_state.animation_event = {
@@ -1228,7 +1232,7 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 🎯 목적지 카드 달성 시 +50점
-- 👿 먹보유령에게 붙잡히지 않도록!
+- 👿 먹보유령에게 잡히면 감점 후 유령은 6칸 뒤에서 다시 추격
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
@@ -1245,7 +1249,7 @@ with st.sidebar:
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
         st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·먹보유령)")
         st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 먹보유령 소환!")
+        st.caption("💜 **함정 칸** — 먹보유령 소환! 잡힌 뒤에는 6칸 뒤에서 재추격")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
 
