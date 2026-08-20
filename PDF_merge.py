@@ -1708,98 +1708,15 @@ with st.sidebar:
     st.markdown("## 🚃 지하철 2호선 게임")
     st.caption("서울 2호선 · 1인용 · 성수 → 건대입구")
 
-    st.session_state.player_name = st.text_input(
-        "플레이어 이름",
-        value=st.session_state.get("player_name", "플레이어"),
-        key="name_input"
-    )
-
-    st.subheader("🚄 내 열차 선택")
-    train_keys = list(TRAIN_TYPES.keys())
-    if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
-        st.session_state.train_selector = normalize_train_key(st.session_state.get("selected_train", "KTX 청룡"))
-    current_phase_for_train = st.session_state.get("game_phase", "start")
-    st.markdown(render_train_preview_gallery(st.session_state.train_selector), unsafe_allow_html=True)
-    chosen_train = st.radio(
-        "함께 달릴 열차를 골라 주세요!",
-        train_keys,
-        key="train_selector",
-        horizontal=True,
-        format_func=lambda key: key,
-        disabled=current_phase_for_train not in ("start", "game_over"),
-    )
-    st.session_state.selected_train = normalize_train_key(chosen_train)
-
-    st.markdown("---")
-    st.subheader("📚 퀴즈 카테고리")
-    all_cats = QUIZ_CATEGORIES
-    if "selected_categories" not in st.session_state:
-        st.session_state.selected_categories = all_cats[:]
-    else:
-        # 이전 버전 세션에 남아 있을 수 있는 더 이상 지원하지 않는 카테고리를 제거합니다.
-        st.session_state.selected_categories = [
-            c for c in st.session_state.selected_categories if c in all_cats
-        ]
-    for cat in all_cats:
-        checked = cat in st.session_state.selected_categories
-        if st.checkbox(cat, value=checked, key=f"cat_{cat}"):
-            if cat not in st.session_state.selected_categories:
-                st.session_state.selected_categories.append(cat)
-        else:
-            if cat in st.session_state.selected_categories:
-                st.session_state.selected_categories.remove(cat)
-
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("🎮 시작", use_container_width=True, type="primary"):
-            start_game(); st.rerun()
-    with col2:
-        if st.button("🔄 리셋", use_container_width=True):
-            init_game(keep_name=True); st.rerun()
-
-    st.markdown("---")
     phase = st.session_state.game_phase
 
-    hand = st.session_state.hand_items
-    if hand:
-        st.subheader("🃏 보유 아이템")
-        for item_slot, item_key in enumerate(list(hand)):
-            item = ITEMS[item_key]
-            col_a, col_b = st.columns([2, 1])
-            with col_a:
-                st.caption(f"{item['name']}\n{item['desc']}")
-            with col_b:
-                if item_key == "skip_penalty":
-                    st.caption("오답 시 자동 사용")
-                    can_use = False
-                elif item_key == "double_move":
-                    can_use = phase == "ready_to_roll" and st.session_state.active_item is None
-                elif item_key == "score_up":
-                    can_use = phase == "answering_quiz" and not st.session_state.score_x2
-                else:
-                    can_use = False
-
-                if item_key != "skip_penalty":
-                    if st.button(
-                        "사용",
-                        key=f"use_{item_slot}_{item_key}_{st.session_state.quiz_key}",
-                        use_container_width=True,
-                        disabled=not can_use,
-                    ):
-                        if item_key == "double_move":
-                            st.session_state.active_item = "double_move"
-                            st.session_state.hand_items.remove(item_key)
-                            add_event_log("🚄 2배 이동 카드 준비!")
-                        elif item_key == "score_up":
-                            st.session_state.score_x2 = True
-                            st.session_state.hand_items.remove(item_key)
-                            add_event_log("💎 점수 2배 카드 준비!")
-                        st.rerun()
-        st.markdown("---")
-
+    # ─────────────────────────────────────────────
+    # 자주 누르는 게임 조작부는 항상 사이드바 최상단에 둡니다.
+    # Streamlit rerun으로 사이드바 스크롤이 위로 초기화되어도
+    # 다음 행동을 위해 다시 아래로 스크롤할 필요가 없습니다.
+    # ─────────────────────────────────────────────
     if phase == "ready_to_roll":
-        st.subheader("🎲 주사위")
+        st.subheader("🎲 지금 할 일: 주사위")
         streak = st.session_state.correct_streak
         if streak >= 3:
             st.success(f"🔥 연속 {streak}정답! 보너스 확률!")
@@ -1807,12 +1724,12 @@ with st.sidebar:
             st.warning("🚄 2배 이동 활성화!")
         if st.session_state.bonus_dice > 0:
             st.info(f"⚡ 주사위 보너스 +{st.session_state.bonus_dice}")
-        if st.button("🎲 주사위 굴리기!", use_container_width=True, type="primary"):
+        if st.button("🎲 주사위 굴리기!", key="top_roll_dice", use_container_width=True, type="primary"):
             move_forward(); st.rerun()
 
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
-        st.subheader("👿 먹보유령 사다리 게임")
+        st.subheader("👿 지금 할 일: 사다리 선택")
         st.warning("🪜 4개의 사다리 중 하나를 골라 주세요! 2개는 탈출, 2개는 먹보유령에게 잡힙니다.")
         if game:
             render_ladder_preview(game)
@@ -1830,19 +1747,19 @@ with st.sidebar:
         st.caption("🎯 성공 확률 50%! 탈출하면 감점 없이 먹보유령이 8칸 뒤로 물러납니다.")
 
     elif phase == "waiting_penalty_roll":
-        st.subheader("😱 뒤로 가기 주사위")
+        st.subheader("😱 지금 할 일: 뒤로 가기")
         if "skip_penalty" in st.session_state.hand_items:
             st.success("✨ 면제 카드 보유! 자동 면제됩니다.")
         else:
             st.error("오답! 뒤로 가기 주사위 (최대 4칸 후퇴)")
-        if st.button("🎲 뒤로 가기 주사위", use_container_width=True):
+        if st.button("🎲 뒤로 가기 주사위", key="top_penalty_roll", use_container_width=True, type="primary"):
             move_backward(); st.rerun()
 
     elif phase == "answering_quiz":
         quiz = st.session_state.current_quiz
         if quiz:
             remaining = len(st.session_state.quiz_queue)
-            title = "📝 퀴즈"
+            title = "📝 지금 할 일: 퀴즈"
             if remaining > 0:
                 title += f" (이후 {remaining}문제 더!)"
             st.subheader(title)
@@ -1852,21 +1769,129 @@ with st.sidebar:
             icon = cat_colors.get(quiz['category'], '⚪')
             st.info(f"{icon} [{quiz['category']}]\n\n**{quiz['question']}**")
             for opt_idx, opt in enumerate(quiz["options"]):
-                if st.button(opt, key=f"opt_{quiz['quiz_id']}_{opt_idx}_{st.session_state.quiz_key}", use_container_width=True):
+                if st.button(
+                    opt,
+                    key=f"opt_{quiz['quiz_id']}_{opt_idx}_{st.session_state.quiz_key}",
+                    use_container_width=True,
+                ):
                     submit_answer(opt); st.rerun()
 
     elif phase == "game_over":
         st.balloons()
         st.success("🎉 건대입구 도착! 게임 클리어!")
-        st.metric("최종 점수",   st.session_state.score)
-        st.metric("총 턴 수",    st.session_state.turns)
-        if st.button("🔄 다시 하기", use_container_width=True, type="primary"):
+        st.metric("최종 점수", st.session_state.score)
+        st.metric("총 턴 수", st.session_state.turns)
+        if st.button("🔄 다시 하기", key="top_play_again", use_container_width=True, type="primary"):
             init_game(keep_name=True); st.rerun()
 
     elif phase == "start":
-        st.info("🎮 이름 입력 후 **시작** 버튼을 눌러 주세요!")
-        st.markdown("""
-**게임 방법**
+        st.info("🎮 아래 **게임 설정**에서 이름·열차·퀴즈를 정한 뒤 시작해 주세요!")
+
+    # 현재 위치도 상단 조작부 바로 아래에 두어 진행 상황을 쉽게 확인합니다.
+    if phase not in ("start",):
+        pos = st.session_state.position
+        total = len(STATIONS)
+        st.progress(pos / (total - 1) if total > 1 else 0)
+        st.caption(f"📍 **{STATIONS[pos]}** ({pos+1}/{total})")
+
+    # 아이템은 현재 행동보다 아래에 배치합니다. 최대 3장이라 사이드바를 과도하게 밀어내지 않습니다.
+    hand = st.session_state.hand_items
+    if hand and phase not in ("start", "game_over"):
+        with st.expander(f"🃏 보유 아이템 ({len(hand)}장)", expanded=False):
+            for item_slot, item_key in enumerate(list(hand)):
+                item = ITEMS[item_key]
+                col_a, col_b = st.columns([2, 1])
+                with col_a:
+                    st.caption(f"{item['name']}\n{item['desc']}")
+                with col_b:
+                    if item_key == "skip_penalty":
+                        st.caption("오답 시 자동 사용")
+                        can_use = False
+                    elif item_key == "double_move":
+                        can_use = phase == "ready_to_roll" and st.session_state.active_item is None
+                    elif item_key == "score_up":
+                        can_use = phase == "answering_quiz" and not st.session_state.score_x2
+                    else:
+                        can_use = False
+
+                    if item_key != "skip_penalty":
+                        if st.button(
+                            "사용",
+                            key=f"use_{item_slot}_{item_key}_{st.session_state.quiz_key}",
+                            use_container_width=True,
+                            disabled=not can_use,
+                        ):
+                            if item_key == "double_move":
+                                st.session_state.active_item = "double_move"
+                                st.session_state.hand_items.remove(item_key)
+                                add_event_log("🚄 2배 이동 카드 준비!")
+                            elif item_key == "score_up":
+                                st.session_state.score_x2 = True
+                                st.session_state.hand_items.remove(item_key)
+                                add_event_log("💎 점수 2배 카드 준비!")
+                            st.rerun()
+
+    st.markdown("---")
+
+    # 게임 설정은 시작 화면에서는 펼치고, 게임 중에는 접어 둡니다.
+    with st.expander("⚙️ 게임 설정", expanded=(phase == "start")):
+        st.session_state.player_name = st.text_input(
+            "플레이어 이름",
+            value=st.session_state.get("player_name", "플레이어"),
+            key="name_input",
+            disabled=phase not in ("start", "game_over"),
+        )
+
+        st.subheader("🚄 내 열차 선택")
+        train_keys = list(TRAIN_TYPES.keys())
+        if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
+            st.session_state.train_selector = normalize_train_key(
+                st.session_state.get("selected_train", "KTX 청룡")
+            )
+        current_phase_for_train = st.session_state.get("game_phase", "start")
+        st.markdown(
+            render_train_preview_gallery(st.session_state.train_selector),
+            unsafe_allow_html=True,
+        )
+        chosen_train = st.radio(
+            "함께 달릴 열차를 골라 주세요!",
+            train_keys,
+            key="train_selector",
+            horizontal=True,
+            format_func=lambda key: key,
+            disabled=current_phase_for_train not in ("start", "game_over"),
+        )
+        st.session_state.selected_train = normalize_train_key(chosen_train)
+
+        st.subheader("📚 퀴즈 카테고리")
+        all_cats = QUIZ_CATEGORIES
+        if "selected_categories" not in st.session_state:
+            st.session_state.selected_categories = all_cats[:]
+        else:
+            st.session_state.selected_categories = [
+                c for c in st.session_state.selected_categories if c in all_cats
+            ]
+        for cat in all_cats:
+            checked = cat in st.session_state.selected_categories
+            if st.checkbox(cat, value=checked, key=f"cat_{cat}"):
+                if cat not in st.session_state.selected_categories:
+                    st.session_state.selected_categories.append(cat)
+            else:
+                if cat in st.session_state.selected_categories:
+                    st.session_state.selected_categories.remove(cat)
+
+        if phase == "start":
+            if st.button("🎮 게임 시작", key="settings_start", use_container_width=True, type="primary"):
+                start_game(); st.rerun()
+        else:
+            st.caption("게임 중에는 열차와 이름 변경이 잠겨 있습니다.")
+
+        if st.button("🔄 게임 리셋", key="settings_reset", use_container_width=True):
+            init_game(keep_name=True); st.rerun()
+
+    if phase == "start":
+        with st.expander("📖 게임 방법", expanded=False):
+            st.markdown("""
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 👿 먹보유령에게 잡히면 4개 사다리 중 하나를 선택! 2개는 탈출, 2개는 잡힘
@@ -1875,13 +1900,6 @@ with st.sidebar:
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
-
-    st.markdown("---")
-    if phase not in ("start",):
-        pos   = st.session_state.position
-        total = len(STATIONS)
-        st.progress(pos / (total - 1) if total > 1 else 0)
-        st.caption(f"📍 **{STATIONS[pos]}** ({pos+1}/{total})")
 
     with st.expander("🗺️ 칸 종류 설명"):
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
