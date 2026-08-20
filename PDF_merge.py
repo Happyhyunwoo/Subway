@@ -530,14 +530,19 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
 
 
 def begin_ghost_minigame(penalty, resume):
-    """유령 접촉 시 즉시 감점하지 않고 3문 탈출 미니게임을 시작합니다."""
+    """유령 접촉 시 즉시 감점하지 않고 4개 사다리 미니게임을 시작합니다."""
     penalty = max(0, int(penalty))
     st.session_state.binbou_pos = st.session_state.position
     st.session_state.binbou_attached = True
+
+    # 4개 사다리 중 정확히 2개는 탈출, 2개는 잡힘입니다.
+    # 결과 배열을 매번 섞기 때문에 각 사다리의 성공 확률은 1/2입니다.
+    ladder_outcomes = ["escape", "escape", "caught", "caught"]
+    random.shuffle(ladder_outcomes)
+
     st.session_state.ghost_game = {
         "id": random.randint(100000, 999999),
-        # 세 문 중 한 문만 먹보유령 문입니다. 즉, 탈출 성공 확률은 2/3입니다.
-        "danger_door": random.randrange(3),
+        "ladder_outcomes": ladder_outcomes,
         "penalty": penalty,
         "resume": resume,
     }
@@ -545,16 +550,16 @@ def begin_ghost_minigame(penalty, resume):
     st.session_state.binbou_effect = {
         "id": random.randint(100000, 999999),
         "type": "challenge",
-        "message": "👿 먹보유령에게 잡혔어요! 3개의 문 중 안전한 문을 골라 탈출하세요!",
+        "message": "👿 먹보유령과 사다리 게임! 4개 중 하나를 고르세요. 2개는 탈출, 2개는 잡힘!",
         "penalty": 0,
     }
     st.session_state.play_sound = "ghost"
     st.session_state.last_message = (
         resume.get("base_msg", "")
-        + "\n\n👿 **먹보유령 탈출 미니게임!** 세 문 중 하나를 골라 보세요. "
-          "두 문은 안전하고 한 문에만 먹보유령이 숨어 있어요!"
+        + "\n\n👿 **먹보유령 사다리 게임!** 4개의 사다리 중 하나를 골라 보세요. "
+          "두 사다리는 탈출, 나머지 두 사다리는 먹보유령에게 잡혀요!"
     )
-    add_event_log("🚪 먹보유령 탈출 미니게임 시작!")
+    add_event_log("🪜 먹보유령 사다리 게임 시작!")
 
 
 def continue_after_forward(base_msg, double_quiz, did_win):
@@ -589,21 +594,30 @@ def continue_after_forward(base_msg, double_quiz, did_win):
 
 
 def resolve_ghost_minigame(choice_index):
-    """3문 미니게임 결과를 처리한 뒤 원래 게임 흐름으로 복귀합니다."""
+    """4개 사다리 미니게임 결과를 처리한 뒤 원래 게임 흐름으로 복귀합니다."""
     game = st.session_state.get("ghost_game")
     if not game:
         return
 
     choice_index = int(choice_index)
-    danger_door = int(game["danger_door"])
+    if not 0 <= choice_index < 4:
+        return
+
+    # 이전 버전의 세션이 남아 있더라도 4개 사다리 규칙으로 안전하게 전환합니다.
+    ladder_outcomes = game.get("ladder_outcomes")
+    if not isinstance(ladder_outcomes, list) or len(ladder_outcomes) != 4:
+        ladder_outcomes = ["escape", "escape", "caught", "caught"]
+        random.shuffle(ladder_outcomes)
+        game["ladder_outcomes"] = ladder_outcomes
+
     penalty = int(game.get("penalty", 10))
     resume = game.get("resume", {})
     ghost_start = st.session_state.position
-    success = choice_index != danger_door
+    success = ladder_outcomes[choice_index] == "escape"
 
     if success:
         result_msg = (
-            f"💨 {choice_index + 1}번 문 탈출 성공! 먹보유령을 따돌렸어요! "
+            f"💨 {choice_index + 1}번 사다리 탈출 성공! 끝까지 내려가니 안전한 길이 나왔어요! "
             "먹보유령이 8칸 뒤로 물러납니다."
         )
         show_binbou_effect(result_msg, 0, "escaped")
@@ -611,7 +625,7 @@ def resolve_ghost_minigame(choice_index):
         reset_binbou_after_catch(distance=8)
     else:
         result_msg = (
-            f"😵 {choice_index + 1}번 문에 먹보유령이 숨어 있었어요! 점수 -{penalty}점! "
+            f"😵 {choice_index + 1}번 사다리 끝에서 먹보유령을 만났어요! 점수 -{penalty}점! "
             "먹보유령은 6칸 뒤에서 다시 따라옵니다."
         )
         show_binbou_effect(result_msg, penalty, "caught")
@@ -1576,21 +1590,26 @@ with st.sidebar:
 
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
-        st.subheader("👿 먹보유령 탈출 미니게임")
-        st.warning("🚪 세 문 중 하나를 골라 주세요! 두 문은 안전하고, 한 문에만 먹보유령이 숨어 있어요.")
+        st.subheader("👿 먹보유령 사다리 게임")
+        st.warning("🪜 4개의 사다리 중 하나를 골라 주세요! 2개는 탈출, 2개는 먹보유령에게 잡힙니다.")
+        st.markdown(
+            "<div style='text-align:center;font-size:25px;letter-spacing:8px;margin:4px 0 8px'>"
+            "🪜 🪜 🪜 🪜</div>",
+            unsafe_allow_html=True,
+        )
         if game:
-            door_cols = st.columns(3)
-            for door_idx, col in enumerate(door_cols):
+            ladder_cols = st.columns(4)
+            for ladder_idx, col in enumerate(ladder_cols):
                 with col:
                     if st.button(
-                        f"🚪 {door_idx + 1}번 문",
-                        key=f"ghost_door_{game['id']}_{door_idx}",
+                        f"{ladder_idx + 1}번",
+                        key=f"ghost_ladder_{game['id']}_{ladder_idx}",
                         use_container_width=True,
                         type="primary",
                     ):
-                        resolve_ghost_minigame(door_idx)
+                        resolve_ghost_minigame(ladder_idx)
                         st.rerun()
-        st.caption("성공하면 감점 없이 탈출하고 먹보유령이 8칸 뒤로 물러납니다!")
+        st.caption("🎯 성공 확률 50%! 탈출하면 감점 없이 먹보유령이 8칸 뒤로 물러납니다.")
 
     elif phase == "waiting_penalty_roll":
         st.subheader("😱 뒤로 가기 주사위")
@@ -1634,7 +1653,7 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 🎯 목적지 카드 달성 시 +50점
-- 👿 먹보유령에게 잡히면 3문 탈출 미니게임 도전
+- 👿 먹보유령에게 잡히면 4개 사다리 중 하나를 선택! 2개는 탈출, 2개는 잡힘
 - 🎁 주황색 보물상자 칸에서 특별 보상 획득
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
 - 🃏 아이템 카드를 전략적으로 활용!
@@ -1653,7 +1672,7 @@ with st.sidebar:
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
         st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·먹보유령)")
         st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 먹보유령 소환! 탈출 미니게임에 도전")
+        st.caption("💜 **함정 칸** — 먹보유령 소환! 4개 사다리 미니게임에 도전")
         st.caption("🟠 **보물상자 칸** — 점수·아이템·주사위 보너스 등 특별 보상")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
