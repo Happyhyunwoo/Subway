@@ -21,40 +21,61 @@ STATIONS = [
     "신촌", "홍대입구", "합정", "당산", "영등포구청", "문래", "신도림", "대림",
     "구로디지털단지", "신대방", "신림", "봉천", "서울대입구", "낙성대", "사당",
     "방배", "서초", "교대", "강남", "역삼", "선릉", "삼성", "종합운동장",
-    "신천", "잠실", "잠실나루", "구의", "강변", "건대입구"
+    "신천", "잠실", "잠실나루", "강변", "구의", "건대입구"
 ]
 GOAL_STATION = "건대입구"
 GOAL_INDEX   = len(STATIONS) - 1
 BINBOU_RESET_DISTANCE = 6
 
-ORIGINAL_WIDTH  = 1340
-ORIGINAL_HEIGHT = 1080
+ORIGINAL_WIDTH  = 1874
+ORIGINAL_HEIGHT = 1510
 
 STATION_PIXELS = {
-    # 상단 수평 구간
-    "아현":          (230,  230), "충정로":        (300,  225), "시청":          (380,  225),
-    "을지로입구":    (460,  225), "을지로3가":     (540,  225), "을지로4가":     (620,  225),
-    "동대문역사문화공원": (705, 210), "신당":      (775,  225), "상왕십리":      (855,  225),
-    "왕십리":        (935,  225),
-    # 오른쪽 꺾임
-    "한양대":        (1010, 265), "뚝섬":          (1055, 310),
-    # 오른쪽 수직
-    "성수":          (1090, 380), "건대입구":      (1090, 445), "구의":          (1090, 510),
-    "강변":          (1090, 575), "잠실나루":      (1090, 630), "잠실":          (1090, 695),
-    "신천":          (1090, 755), "종합운동장":    (1090, 810), "삼성":          (1050, 855),
-    # 하단 수평 구간
-    "선릉":          (980,  875), "역삼":          (910,  875), "강남":          (840,  875),
-    "교대":          (770,  875), "서초":          (700,  875), "방배":          (630,  875),
-    "사당":          (560,  875), "낙성대":        (490,  875), "서울대입구":    (420,  875),
-    "봉천":          (355,  875), "신림":          (290,  875), "신대방":        (230,  855),
-    # 왼쪽 하단 꺾임
-    "구로디지털단지": (185, 820),
-    # 왼쪽 수직
-    "대림":          (165,  760), "신도림":        (165,  700), "문래":          (165,  635),
-    "영등포구청":    (165,  570), "당산":          (165,  510), "합정":          (165,  450),
-    "홍대입구":      (165,  390),
-    # 왼쪽 상단 꺾임
-    "신촌":          (185,  325), "이대":          (215,  270),
+    # 첨부된 1874×1510 노선도 이미지 기준 좌표
+    # 성수 → 뚝섬 → ... → 건대입구 순서로 실제 2호선 진행 경로를 따라갑니다.
+    "성수":          (1559,  522),
+    "뚝섬":          (1523,  409),
+    "한양대":        (1456,  358),
+    "왕십리":        (1372,  342),
+    "상왕십리":      (1265,  342),
+    "신당":          (1163,  342),
+    "동대문역사문화공원": (1063, 342),
+    "을지로4가":     (946,   342),
+    "을지로3가":     (842,   342),
+    "을지로입구":    (740,   343),
+    "시청":          (645,   343),
+    "충정로":        (544,   343),
+    "아현":          (454,   362),
+    "이대":          (426,   394),
+    "신촌":          (366,   475),
+    "홍대입구":      (361,   561),
+    "합정":          (361,   642),
+    "당산":          (361,   731),
+    "영등포구청":    (361,   815),
+    "문래":          (362,   895),
+    "신도림":        (361,   975),
+    "대림":          (361,  1073),
+    "구로디지털단지": (381, 1160),
+    "신대방":        (438,  1223),
+    "신림":          (521,  1253),
+    "봉천":          (611,  1253),
+    "서울대입구":    (698,  1253),
+    "낙성대":        (788,  1253),
+    "사당":          (881,  1253),
+    "방배":          (970,  1253),
+    "서초":          (1060, 1253),
+    "교대":          (1153, 1253),
+    "강남":          (1240, 1253),
+    "역삼":          (1333, 1253),
+    "선릉":          (1423, 1253),
+    "삼성":          (1507, 1204),
+    "종합운동장":    (1551, 1137),
+    "신천":          (1559, 1051),
+    "잠실":          (1559,  961),
+    "잠실나루":      (1559,  874),
+    "강변":          (1559,  787),
+    "구의":          (1560,  698),
+    "건대입구":      (1559,  610),
 }
 
 STATION_POINTS = {
@@ -101,133 +122,178 @@ ITEMS = {
 }
 
 DEST_CANDIDATES = ["강남", "홍대입구", "왕십리", "선릉", "시청", "을지로입구", "합정", "교대"]
-QUIZ_CATEGORIES = ["수학", "국어", "상식", "과학", "영어", "수수께끼"]
+QUIZ_CATEGORIES = ["국어", "상식", "과학", "영어", "수수께끼"]
 
 QUIZZES = [
-    # ══════════════ 수학 ══════════════
-    {'category': '수학', 'question': '5 + 3은 얼마일까요?',
-     'options': ['7', '8', '9', '백만'],  'answer': 1},
-    {'category': '수학', 'question': '12 - 5는 얼마일까요?',
-     'options': ['6', '7', '8', '마이너스 피자'],  'answer': 1},
-    {'category': '수학', 'question': '2 × 3은 얼마일까요?',
-     'options': ['5', '6', '7', '23'],  'answer': 1},
-    {'category': '수학', 'question': '10 ÷ 2는 얼마일까요?',
-     'options': ['3', '4', '5', '두 동강'],  'answer': 2},
-    {'category': '수학', 'question': '삼각형의 꼭짓점은 몇 개일까요?',
-     'options': ['2개', '3개', '4개', '무한개'],  'answer': 1},
-    {'category': '수학', 'question': '100보다 1 작은 수는 무엇일까요?',
-     'options': ['98', '99', '101', '99.9'],  'answer': 1},
-    {'category': '수학', 'question': '4 × 4는 얼마일까요?',
-     'options': ['12', '14', '16', '44'],  'answer': 2},
-    {'category': '수학', 'question': '정사각형의 변은 몇 개일까요?',
-     'options': ['3개', '4개', '5개', '8개'],  'answer': 1},
-    {'category': '수학', 'question': '15 + 6은 얼마일까요?',
-     'options': ['19', '20', '21', '156'],  'answer': 2},
-    {'category': '수학', 'question': '다음 중 가장 큰 수는 어느 것일까요?',
-     'options': ['19', '23', '17', '1000'],  'answer': 3},
-    {'category': '수학', 'question': '30을 3으로 나누면 얼마일까요?',
-     'options': ['9', '10', '11', '303'],  'answer': 1},
-    {'category': '수학', 'question': '1시간은 몇 분일까요?',
-     'options': ['30분', '60분', '100분', '무한분'],  'answer': 1},
-    # ══════════════ 국어 ══════════════
+    # ══════════════ 국어 (20문제) ══════════════
     {'category': '국어', 'question': "'봄, 여름, 가을' 다음 계절은 무엇일까요?",
-     'options': ['봄', '여름', '겨울', '치킨'],  'answer': 2},
-    {'category': '국어', 'question': "다음 중 과일 이름은 무엇일까요?",
-     'options': ['바나나', '의자', '신발', '연필'],  'answer': 0},
+     'options': ['봄', '여름', '겨울', '치킨'], 'answer': 2},
+    {'category': '국어', 'question': '다음 중 과일 이름은 무엇일까요?',
+     'options': ['바나나', '의자', '신발', '연필'], 'answer': 0},
     {'category': '국어', 'question': "'빠르다'와 비슷한 말은 무엇일까요?",
-     'options': ['느리다', '무겁다', '신속하다', '뽀글뽀글'],  'answer': 2},
-    {'category': '국어', 'question': "다음 중 탈것(이동수단) 이름은 무엇일까요?",
-     'options': ['사자', '버스', '사과', '구름'],  'answer': 1},
+     'options': ['느리다', '무겁다', '신속하다', '뽀글뽀글'], 'answer': 2},
+    {'category': '국어', 'question': '다음 중 탈것(이동수단) 이름은 무엇일까요?',
+     'options': ['사자', '버스', '사과', '구름'], 'answer': 1},
     {'category': '국어', 'question': "'뜨겁다'의 반대말은 무엇일까요?",
-     'options': ['차갑다', '무겁다', '높다', '맛있다'],  'answer': 0},
+     'options': ['차갑다', '무겁다', '높다', '맛있다'], 'answer': 0},
     {'category': '국어', 'question': "'웃다'와 반대 뜻의 말은 무엇일까요?",
-     'options': ['달리다', '울다', '먹다', '방귀'],  'answer': 1},
-    {'category': '국어', 'question': "다음 중 날씨를 나타내는 말은 무엇일까요?",
-     'options': ['맑다', '자동차', '우유', '공책'],  'answer': 0},
+     'options': ['달리다', '울다', '먹다', '방귀'], 'answer': 1},
+    {'category': '국어', 'question': '다음 중 날씨를 나타내는 말은 무엇일까요?',
+     'options': ['맑다', '자동차', '우유', '공책'], 'answer': 0},
     {'category': '국어', 'question': "'ㄱ, ㄴ, ㄷ' 다음 자음은 무엇일까요?",
-     'options': ['ㅁ', 'ㄹ', 'ㅂ', 'ㅎ'],  'answer': 1},
-    {'category': '국어', 'question': "다음 중 채소 이름은 무엇일까요?",
-     'options': ['당근', '비행기', '지우개', '슬리퍼'],  'answer': 0},
+     'options': ['ㅁ', 'ㄹ', 'ㅂ', 'ㅎ'], 'answer': 1},
+    {'category': '국어', 'question': '다음 중 채소 이름은 무엇일까요?',
+     'options': ['당근', '비행기', '지우개', '슬리퍼'], 'answer': 0},
     {'category': '국어', 'question': "'높다'의 반대말은 무엇일까요?",
-     'options': ['멀다', '깊다', '낮다', '엉덩이'],  'answer': 2},
-    {'category': '국어', 'question': "다음 중 가족을 부르는 말이 아닌 것은?",
-     'options': ['엄마', '아빠', '할머니', '냉장고'],  'answer': 3},
-    # ══════════════ 상식 ══════════════
+     'options': ['멀다', '깊다', '낮다', '엉덩이'], 'answer': 2},
+    {'category': '국어', 'question': '다음 중 가족을 부르는 말이 아닌 것은?',
+     'options': ['엄마', '아빠', '할머니', '냉장고'], 'answer': 3},
+    {'category': '국어', 'question': "'크다'와 반대 뜻의 말은 무엇일까요?",
+     'options': ['작다', '길다', '넓다', '둥글다'], 'answer': 0},
+    {'category': '국어', 'question': '다음 중 동물을 나타내는 말은 무엇일까요?',
+     'options': ['토끼', '책상', '우산', '시계'], 'answer': 0},
+    {'category': '국어', 'question': "'기쁘다'와 비슷한 뜻의 말은 무엇일까요?",
+     'options': ['즐겁다', '춥다', '어둡다', '느리다'], 'answer': 0},
+    {'category': '국어', 'question': '다음 중 장소를 나타내는 말은 무엇일까요?',
+     'options': ['학교', '달리다', '예쁘다', '빨리'], 'answer': 0},
+    {'category': '국어', 'question': "'사과를 먹었다.'에서 먹은 것은 무엇일까요?",
+     'options': ['사과', '학교', '버스', '모자'], 'answer': 0},
+    {'category': '국어', 'question': '다음 중 받침이 있는 글자는 무엇일까요?',
+     'options': ['가', '나', '달', '오'], 'answer': 2},
+    {'category': '국어', 'question': "'강아지가 멍멍 짖어요.'에서 동물은 무엇일까요?",
+     'options': ['강아지', '멍멍', '짖어요', '구름'], 'answer': 0},
+    {'category': '국어', 'question': '다음 중 문장을 끝낼 때 자주 쓰는 문장 부호는 무엇일까요?',
+     'options': ['마침표(.)', '괄호(', '별표(*)', '더하기(+)'], 'answer': 0},
+    {'category': '국어', 'question': "'위'의 반대말은 무엇일까요?",
+     'options': ['아래', '옆', '앞', '밖'], 'answer': 0},
+
+    # ══════════════ 상식 (20문제) ══════════════
     {'category': '상식', 'question': '1년은 몇 개월일까요?',
-     'options': ['10개월', '11개월', '12개월', '13개월'],  'answer': 2},
+     'options': ['10개월', '11개월', '12개월', '13개월'], 'answer': 2},
     {'category': '상식', 'question': '무지개는 몇 가지 색으로 이루어져 있을까요?',
-     'options': ['5가지', '6가지', '7가지', '100가지'],  'answer': 2},
-    {'category': '상식', 'question': '병원에서 일하며 아픈 사람을 돌봐주는 사람은?',
-     'options': ['소방관', '의사', '요리사', '우주인'],  'answer': 1},
+     'options': ['5가지', '6가지', '7가지', '100가지'], 'answer': 2},
+    {'category': '상식', 'question': '병원에서 일하며 아픈 사람을 진료하는 사람은?',
+     'options': ['소방관', '의사', '요리사', '우주인'], 'answer': 1},
     {'category': '상식', 'question': '쓰레기는 어디에 버려야 할까요?',
-     'options': ['바닥', '강', '쓰레기통', '친구 가방'],  'answer': 2},
+     'options': ['바닥', '강', '쓰레기통', '친구 가방'], 'answer': 2},
     {'category': '상식', 'question': '횡단보도를 건널 때 초록불이면 어떻게 해야 할까요?',
-     'options': ['뛰어서 건넌다', '좌우를 살피고 건넌다', '그냥 앉아 있는다', '눈 감고 건넌다'],  'answer': 1},
+     'options': ['뛰어서 건넌다', '좌우를 살피고 건넌다', '그냥 앉아 있는다', '눈 감고 건넌다'], 'answer': 1},
     {'category': '상식', 'question': '우리나라 국기의 이름은 무엇일까요?',
-     'options': ['성조기', '태극기', '욱일기', '무지개기'],  'answer': 1},
+     'options': ['성조기', '태극기', '오륜기', '무지개기'], 'answer': 1},
     {'category': '상식', 'question': '하루는 몇 시간일까요?',
-     'options': ['12시간', '20시간', '24시간', '100시간'],  'answer': 2},
+     'options': ['12시간', '20시간', '24시간', '100시간'], 'answer': 2},
     {'category': '상식', 'question': '음식을 먹기 전에 해야 할 일은 무엇일까요?',
-     'options': ['손 씻기', '노래 부르기', '점프하기', '숙제하기'],  'answer': 0},
+     'options': ['손 씻기', '노래 부르기', '점프하기', '숙제하기'], 'answer': 0},
     {'category': '상식', 'question': '도서관에서 지켜야 할 규칙은 무엇일까요?',
-     'options': ['큰 소리로 노래한다', '조용히 한다', '뛰어다닌다', '라면을 끓여 먹는다'],  'answer': 1},
+     'options': ['큰 소리로 노래한다', '조용히 한다', '뛰어다닌다', '라면을 끓여 먹는다'], 'answer': 1},
     {'category': '상식', 'question': '지구에서 가장 큰 바다는 무엇일까요?',
-     'options': ['대서양', '인도양', '태평양', '목욕탕'],  'answer': 2},
-    {'category': '상식', 'question': '서울 2호선 지하철의 색깔은 무엇일까요?',
-     'options': ['파란색', '초록색', '빨간색', '무지개색'],  'answer': 1},
-    {'category': '상식', 'question': '감기에 걸렸을 때 가야 할 곳은?',
-     'options': ['놀이공원', '수영장', '병원', '치킨집'],  'answer': 2},
-    # ══════════════ 과학 ══════════════
+     'options': ['대서양', '인도양', '태평양', '목욕탕'], 'answer': 2},
+    {'category': '상식', 'question': '서울 2호선 지하철의 대표 색깔은 무엇일까요?',
+     'options': ['파란색', '초록색', '빨간색', '무지개색'], 'answer': 1},
+    {'category': '상식', 'question': '감기에 걸렸을 때 진료를 받으러 가는 곳은?',
+     'options': ['놀이공원', '수영장', '병원', '치킨집'], 'answer': 2},
+    {'category': '상식', 'question': '불이 났을 때 도움을 요청하는 긴급 전화번호는 무엇일까요?',
+     'options': ['112', '119', '120', '123'], 'answer': 1},
+    {'category': '상식', 'question': '길을 잃었을 때 가장 안전한 행동은 무엇일까요?',
+     'options': ['혼자 멀리 간다', '안전한 곳에서 경찰이나 직원에게 도움을 요청한다', '아무 차나 탄다', '숨는다'], 'answer': 1},
+    {'category': '상식', 'question': '비가 많이 오는 날 밖에 나갈 때 필요한 것은 무엇일까요?',
+     'options': ['우산', '선글라스만', '수영모', '베개'], 'answer': 0},
+    {'category': '상식', 'question': '버스나 지하철에서 지켜야 할 예절로 알맞은 것은?',
+     'options': ['큰 소리로 소리친다', '차례를 지켜 타고 내린다', '좌석 위에 선다', '문을 막는다'], 'answer': 1},
+    {'category': '상식', 'question': '우리나라의 수도는 어디일까요?',
+     'options': ['서울', '부산', '제주', '도쿄'], 'answer': 0},
+    {'category': '상식', 'question': '양치질은 무엇을 깨끗하게 하기 위해 할까요?',
+     'options': ['신발', '치아', '가방', '모자'], 'answer': 1},
+    {'category': '상식', 'question': '겨울에 몸을 따뜻하게 하기 좋은 옷은 무엇일까요?',
+     'options': ['두꺼운 외투', '수영복', '반팔 한 장', '슬리퍼만'], 'answer': 0},
+    {'category': '상식', 'question': '신호등의 빨간불은 보통 무엇을 뜻할까요?',
+     'options': ['멈춤', '출발', '춤추기', '달리기'], 'answer': 0},
+
+    # ══════════════ 과학 (20문제) ══════════════
     {'category': '과학', 'question': '물이 얼면 무엇이 될까요?',
-     'options': ['수증기', '얼음', '구름', '슬러시'],  'answer': 1},
-    {'category': '과학', 'question': '낮과 밤이 생기는 이유는 무엇일까요?',
-     'options': ['해가 자서', '지구가 돌아서', '달이 가려서', '구름 때문에'],  'answer': 1},
-    {'category': '과학', 'question': '식물이 초록색인 이유와 관련 있는 것은?',
-     'options': ['물', '엽록소', '흙', '바람'],  'answer': 1},
-    {'category': '과학', 'question': '물고기는 무엇으로 숨을 쉴까요?',
-     'options': ['코', '아가미', '피부', '입'],  'answer': 1},
+     'options': ['수증기', '얼음', '구름', '슬러시'], 'answer': 1},
+    {'category': '과학', 'question': '낮과 밤이 생기는 가장 큰 이유는 무엇일까요?',
+     'options': ['해가 자서', '지구가 자전해서', '달이 항상 해를 가려서', '구름 때문에'], 'answer': 1},
+    {'category': '과학', 'question': '식물이 초록색으로 보이는 것과 가장 관련 있는 것은?',
+     'options': ['물', '엽록소', '흙', '바람'], 'answer': 1},
+    {'category': '과학', 'question': '물고기는 주로 무엇으로 숨을 쉴까요?',
+     'options': ['코', '아가미', '날개', '귀'], 'answer': 1},
     {'category': '과학', 'question': '다음 중 곤충이 아닌 것은 무엇일까요?',
-     'options': ['나비', '개미', '거미', '잠자리'],  'answer': 2},
-    {'category': '과학', 'question': '달은 지구 주위를 몇 바퀴 도는 데 약 한 달이 걸릴까요?',
-     'options': ['반 바퀴', '한 바퀴', '두 바퀴', '백 바퀴'],  'answer': 1},
-    {'category': '과학', 'question': '다음 중 가장 가벼운 것은?',
-     'options': ['쇠공', '돌멩이', '솜뭉치', '아이스크림'],  'answer': 2},
-    {'category': '과학', 'question': '씨앗이 싹을 틔울 때 가장 먼저 나오는 것은?',
-     'options': ['꽃', '뿌리', '잎', '열매'],  'answer': 1},
-    {'category': '과학', 'question': '비가 오기 전에 하늘에 생기는 것은?',
-     'options': ['무지개', '먹구름', '별', '태양'],  'answer': 1},
-    {'category': '과학', 'question': '우리 몸에서 피를 온몸으로 보내주는 기관은?',
-     'options': ['위', '폐', '심장', '콩팥'],  'answer': 2},
+     'options': ['나비', '개미', '거미', '잠자리'], 'answer': 2},
+    {'category': '과학', 'question': '달이 지구 주위를 한 바퀴 도는 데 걸리는 시간은 대략 얼마일까요?',
+     'options': ['하루', '약 한 달', '약 일 년', '10년'], 'answer': 1},
+    {'category': '과학', 'question': '다음 중 보통 가장 가벼운 것은?',
+     'options': ['쇠공', '돌멩이', '솜뭉치', '벽돌'], 'answer': 2},
+    {'category': '과학', 'question': '씨앗이 싹을 틔울 때 보통 먼저 나오는 부분은?',
+     'options': ['꽃', '뿌리', '열매', '나무껍질'], 'answer': 1},
+    {'category': '과학', 'question': '비가 오기 전 하늘에서 자주 볼 수 있는 것은?',
+     'options': ['먹구름', '별똥별', '오로라', '달무지개만'], 'answer': 0},
+    {'category': '과학', 'question': '우리 몸에서 피를 온몸으로 보내는 기관은?',
+     'options': ['위', '폐', '심장', '콩팥'], 'answer': 2},
     {'category': '과학', 'question': '다음 중 포유류는 무엇일까요?',
-     'options': ['독수리', '개구리', '고래', '뱀'],  'answer': 2},
-    {'category': '과학', 'question': '소리는 무엇을 통해 전달될까요?',
-     'options': ['빛', '공기', '그림자', '생각'],  'answer': 1},
-    # ══════════════ 영어 ══════════════
+     'options': ['독수리', '개구리', '고래', '뱀'], 'answer': 2},
+    {'category': '과학', 'question': '소리는 무엇 같은 물질을 통해 전달될 수 있을까요?',
+     'options': ['공기', '그림자', '생각', '숫자'], 'answer': 0},
+    {'category': '과학', 'question': '태양은 무엇일까요?',
+     'options': ['별', '행성', '위성', '구름'], 'answer': 0},
+    {'category': '과학', 'question': '얼음이 따뜻해져 녹으면 무엇이 될까요?',
+     'options': ['물', '돌', '나무', '모래'], 'answer': 0},
+    {'category': '과학', 'question': '사람이 숨을 쉴 때 꼭 필요한 기체는 무엇일까요?',
+     'options': ['산소', '초콜릿', '모래', '소금'], 'answer': 0},
+    {'category': '과학', 'question': '자석에 잘 붙는 물질은 무엇일까요?',
+     'options': ['철', '종이', '고무', '나무'], 'answer': 0},
+    {'category': '과학', 'question': '식물이 자라는 데 도움이 되는 것은 무엇일까요?',
+     'options': ['햇빛과 물', '플라스틱만', '소리만', '연필'], 'answer': 0},
+    {'category': '과학', 'question': '우리 몸에서 숨을 쉬는 데 중요한 기관은 무엇일까요?',
+     'options': ['폐', '발', '손톱', '머리카락'], 'answer': 0},
+    {'category': '과학', 'question': '개구리는 어릴 때 무엇이라고 부를까요?',
+     'options': ['올챙이', '송아지', '병아리', '애벌레'], 'answer': 0},
+    {'category': '과학', 'question': '지구가 태양 주위를 도는 것을 무엇이라고 할까요?',
+     'options': ['공전', '정지', '점프', '증발'], 'answer': 0},
+
+    # ══════════════ 영어 (20문제) ══════════════
     {'category': '영어', 'question': "'red'는 무슨 색일까요?",
-     'options': ['파랑', '노랑', '빨강', '투명'],  'answer': 2},
+     'options': ['파랑', '노랑', '빨강', '투명'], 'answer': 2},
     {'category': '영어', 'question': "'banana'는 무엇일까요?",
-     'options': ['사과', '바나나', '포도', '바나나우유'],  'answer': 1},
+     'options': ['사과', '바나나', '포도', '바나나우유'], 'answer': 1},
     {'category': '영어', 'question': "'school'은 어디일까요?",
-     'options': ['집', '병원', '학교', '스쿨버스'],  'answer': 2},
+     'options': ['집', '병원', '학교', '공원'], 'answer': 2},
     {'category': '영어', 'question': "'happy'는 무슨 뜻일까요?",
-     'options': ['슬프다', '행복하다', '배고프다', '해피밀'],  'answer': 1},
+     'options': ['슬프다', '행복하다', '배고프다', '졸리다'], 'answer': 1},
     {'category': '영어', 'question': "'book'은 무엇일까요?",
-     'options': ['책', '공책', '연필', '북극'],  'answer': 0},
+     'options': ['책', '공책', '연필', '북극'], 'answer': 0},
     {'category': '영어', 'question': "'elephant'는 어떤 동물일까요?",
-     'options': ['사자', '기린', '코끼리', '엘리팬트'],  'answer': 2},
+     'options': ['사자', '기린', '코끼리', '토끼'], 'answer': 2},
     {'category': '영어', 'question': "'run'은 무슨 뜻일까요?",
-     'options': ['자다', '먹다', '달리다', '런치'],  'answer': 2},
+     'options': ['자다', '먹다', '달리다', '읽다'], 'answer': 2},
     {'category': '영어', 'question': "'cold'는 무슨 뜻일까요?",
-     'options': ['뜨겁다', '춥다·차갑다', '달다', '콜드브루'],  'answer': 1},
+     'options': ['뜨겁다', '춥다·차갑다', '달다', '밝다'], 'answer': 1},
     {'category': '영어', 'question': "'friend'는 무슨 뜻일까요?",
-     'options': ['적', '친구', '가족', '프렌치토스트'],  'answer': 1},
+     'options': ['적', '친구', '가족', '선생님'], 'answer': 1},
     {'category': '영어', 'question': "'big'과 반대 뜻의 영어 단어는?",
-     'options': ['tall', 'fast', 'small', 'pig'],  'answer': 2},
+     'options': ['tall', 'fast', 'small', 'pig'], 'answer': 2},
     {'category': '영어', 'question': "'rainbow'는 무엇일까요?",
-     'options': ['구름', '번개', '무지개', '레인코트'],  'answer': 2},
+     'options': ['구름', '번개', '무지개', '우산'], 'answer': 2},
     {'category': '영어', 'question': "'1, 2, 3'을 영어로 세면?",
-     'options': ['one, two, three', 'uno, dos, tres', 'ichi, ni, san', 'han, dul, set'],  'answer': 0},
-    # ══════════════ 수수께끼 ══════════════
+     'options': ['one, two, three', 'uno, dos, tres', 'ichi, ni, san', 'han, dul, set'], 'answer': 0},
+    {'category': '영어', 'question': "'dog'는 어떤 동물일까요?",
+     'options': ['개', '고양이', '새', '물고기'], 'answer': 0},
+    {'category': '영어', 'question': "'water'는 무엇일까요?",
+     'options': ['물', '불', '바람', '흙'], 'answer': 0},
+    {'category': '영어', 'question': "'green'은 무슨 색일까요?",
+     'options': ['초록색', '보라색', '검은색', '하얀색'], 'answer': 0},
+    {'category': '영어', 'question': "'thank you'는 어떤 뜻일까요?",
+     'options': ['고마워요', '미안해요', '안녕히 주무세요', '배고파요'], 'answer': 0},
+    {'category': '영어', 'question': "'cat'은 무엇일까요?",
+     'options': ['고양이', '자동차', '모자', '컵'], 'answer': 0},
+    {'category': '영어', 'question': "'apple'은 무엇일까요?",
+     'options': ['사과', '딸기', '수박', '복숭아'], 'answer': 0},
+    {'category': '영어', 'question': "'good morning'은 언제 주로 하는 인사일까요?",
+     'options': ['아침', '한밤중', '식사 중에만', '비가 올 때만'], 'answer': 0},
+    {'category': '영어', 'question': "'sit down'은 무슨 뜻일까요?",
+     'options': ['앉으세요', '달리세요', '노래하세요', '문을 여세요'], 'answer': 0},
+
+    # ══════════════ 수수께끼 (20문제) ══════════════
     {'category': '수수께끼', 'question': '먹을수록 커지고 물을 마실수록 작아지는 것은 무엇일까요?',
      'options': ['불', '구름', '나무', '풍선'], 'answer': 0},
     {'category': '수수께끼', 'question': '문은 문인데 사람이 드나들 수 없는 문은 무엇일까요?',
@@ -258,10 +324,20 @@ QUIZZES = [
      'options': ['연기', '돌', '나무', '강'], 'answer': 0},
     {'category': '수수께끼', 'question': '얼굴과 두 손은 있지만 입과 발이 없는 것은 무엇일까요?',
      'options': ['인형', '시계', '사진', '로봇'], 'answer': 1},
+    {'category': '수수께끼', 'question': '아침에는 길고 한낮에는 짧아지는 것은 무엇일까요?',
+     'options': ['그림자', '연필', '기차', '신발'], 'answer': 0},
+    {'category': '수수께끼', 'question': '계속 돌지만 제자리에서 떠나지 않는 것은 무엇일까요?',
+     'options': ['선풍기 날개', '자동차', '비행기', '강아지'], 'answer': 0},
+    {'category': '수수께끼', 'question': '물을 먹으면 죽고, 나무를 먹으면 사는 것은 무엇일까요?',
+     'options': ['불', '물고기', '구름', '얼음'], 'answer': 0},
+    {'category': '수수께끼', 'question': '집은 집인데 사람이 살지 않고 책이 많이 사는 집은 무엇일까요?',
+     'options': ['도서관', '아파트', '텐트', '놀이터'], 'answer': 0},
+    {'category': '수수께끼', 'question': '발은 없지만 계속 흐르는 것은 무엇일까요?',
+     'options': ['강물', '의자', '모자', '공책'], 'answer': 0},
 ]
 
 
-# ═══════════════════════════════════════════════════
+# ═
 #  게임 상태 초기화
 # ═══════════════════════════════════════════════════
 def init_game(keep_name=True):
@@ -311,11 +387,11 @@ def start_game():
 
 
 def get_map_bytes():
-    for fname in ["line2_map-3.jpg", "line2_map.png"]:
+    for fname in ["line2_map.png", "line2_map(1).png", "line2_map-3.jpg"]:
         p = APP_DIR / fname
         if p.exists():
             return p.read_bytes(), fname.endswith(".jpg")
-    st.error("노선도 이미지 파일이 없습니다. line2_map-3.jpg 파일을 같은 폴더에 놓아 주세요.")
+    st.error("노선도 이미지 파일이 없습니다. line2_map.png 파일을 같은 폴더에 놓아 주세요.")
     st.stop()
 
 
@@ -546,20 +622,22 @@ def move_forward():
         return
 
     old_pos = st.session_state.position
+
+    # 이전 실행에서 남은 부착 상태는 다음 턴으로 지속하지 않습니다.
+    if st.session_state.binbou_attached:
+        reset_binbou_after_catch()
+    old_binbou_pos = st.session_state.binbou_pos
+
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
 
-    # 이전 실행에서 부착 상태가 남아 있어도 즉시 6칸 뒤에서 재출발시킵니다.
-    if st.session_state.binbou_attached:
-        reset_binbou_after_catch()
-    was_attached = False
     st.session_state.binbou_effect = None
     st.session_state.position = landing_pos
     st.session_state.last_dice_value = dice
     st.session_state.turns += 1
 
+    # 플레이어가 이동한 뒤 유령이 실제 경로를 따라 추격합니다.
     if st.session_state.binbou_pos >= 0:
-        # 유령은 매 턴 다시 추격하며, 접촉하면 효과 후 즉시 6칸 뒤로 돌아갑니다.
         ghost_steps = min(9, dice + random.randint(0, 3))
         move_binbou(ghost_steps)
     elif st.session_state.turns >= 5:
@@ -567,48 +645,53 @@ def move_forward():
         sync_binbou_attachment(log_change=False)
         add_event_log("👿 먹보유령이 등장했습니다!")
 
-    did_win = landing_pos >= GOAL_INDEX
-    if did_win:
-        st.session_state.animation_event = {
-            "position": landing_pos,
-            "binbou_pos": st.session_state.binbou_pos,
-            "path_indices": build_path(old_pos, landing_pos),
-            "dice": dice,
-            "win": True,
-        }
-        st.session_state.play_sound = "win"
-        st.session_state.game_phase = "game_over"
-        st.session_state.winner = True
-        st.session_state.last_message = (
-            f"🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!\n"
-            f"총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점\n"
-            f"목적지 도달: {st.session_state.dest_reached}회"
-        )
-        return
-
     landing_station = STATIONS[landing_pos]
     ev_msg, double_quiz, trap_penalty_applied = apply_square_event(landing_station, landing_pos)
+
+    # 칸 이벤트까지 적용된 시점의 유령 위치를 저장합니다.
+    # 접촉이 일어나면 resolve_binbou_contact()가 이후 6칸 뒤로 재배치합니다.
+    binbou_before_contact = st.session_state.binbou_pos
     contact_msg = resolve_binbou_contact(
-        was_attached,
+        False,
         trap_penalty_already_applied=trap_penalty_applied,
     )
+
     final_pos = st.session_state.position
     final_station = STATIONS[final_pos]
+    final_binbou_pos = st.session_state.binbou_pos
 
-    # 주사위 도착역까지 이동한 뒤 후퇴 이벤트가 있으면 최종역까지 이어서 이동합니다.
+    # 플레이어 애니메이션 경로
     path_indices = build_path(old_pos, landing_pos)
     if final_pos != landing_pos:
         path_indices.extend(build_path(landing_pos, final_pos)[1:])
 
+    # 먹보유령 애니메이션 경로: 이전 위치 → 추격/접촉 위치 → (잡았으면) 6칸 뒤 재배치
+    binbou_path_indices = []
+    if old_binbou_pos >= 0 and binbou_before_contact >= 0:
+        binbou_path_indices = build_path(old_binbou_pos, binbou_before_contact)
+    elif old_binbou_pos < 0 and binbou_before_contact >= 0:
+        binbou_path_indices = [binbou_before_contact]
+
+    binbou_reset_path_indices = []
+    if (
+        binbou_before_contact >= 0
+        and final_binbou_pos >= 0
+        and final_binbou_pos != binbou_before_contact
+    ):
+        binbou_reset_path_indices = build_path(binbou_before_contact, final_binbou_pos)
+
+    did_win = final_pos >= GOAL_INDEX
     st.session_state.animation_event = {
         "position": final_pos,
-        "binbou_pos": st.session_state.binbou_pos,
+        "binbou_pos": final_binbou_pos,
+        "binbou_start_pos": old_binbou_pos,
+        "binbou_path_indices": binbou_path_indices,
+        "binbou_reset_path_indices": binbou_reset_path_indices,
         "path_indices": path_indices,
         "dice": dice,
-        "win": False,
+        "win": did_win,
     }
-    if st.session_state.binbou_effect is None:
-        st.session_state.play_sound = "dice"
+
     add_event_log(f"📍 {landing_station}역 도착 (주사위 {dice})")
 
     base_msg = (
@@ -621,6 +704,23 @@ def move_forward():
         base_msg += f"\n\n{contact_msg}"
     if final_pos != landing_pos:
         base_msg += f"\n\n📌 현재 위치: **{final_station}**역"
+
+    # 승리 판정은 칸 이벤트와 먹보유령 접촉 처리가 모두 끝난 뒤 수행합니다.
+    if did_win:
+        st.session_state.play_sound = "win"
+        st.session_state.game_phase = "game_over"
+        st.session_state.winner = True
+        st.session_state.current_quiz = None
+        st.session_state.quiz_queue = []
+        st.session_state.last_message = (
+            f"🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!\n"
+            f"총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점\n"
+            f"목적지 도달: {st.session_state.dest_reached}회"
+        )
+        return
+
+    if st.session_state.binbou_effect is None:
+        st.session_state.play_sound = "dice"
 
     if double_quiz:
         st.session_state.quiz_queue = [get_random_quiz(), get_random_quiz()]
@@ -653,10 +753,10 @@ def move_backward():
         return
 
     old_pos = st.session_state.position
-    # 이전 실행에서 남은 부착 상태는 지속하지 않습니다.
     if st.session_state.binbou_attached:
         reset_binbou_after_catch()
-    was_attached = False
+    old_binbou_pos = st.session_state.binbou_pos
+
     st.session_state.binbou_effect = None
     dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
@@ -664,12 +764,32 @@ def move_backward():
     st.session_state.last_dice_value = dice
     st.session_state.current_quiz = None
     st.session_state.correct_streak = 0
+
     move_binbou(dice)
-    contact_msg = resolve_binbou_contact(was_attached)
+    binbou_before_contact = st.session_state.binbou_pos
+    contact_msg = resolve_binbou_contact(False)
+    final_binbou_pos = st.session_state.binbou_pos
+
+    binbou_path_indices = []
+    if old_binbou_pos >= 0 and binbou_before_contact >= 0:
+        binbou_path_indices = build_path(old_binbou_pos, binbou_before_contact)
+    elif old_binbou_pos < 0 and binbou_before_contact >= 0:
+        binbou_path_indices = [binbou_before_contact]
+
+    binbou_reset_path_indices = []
+    if (
+        binbou_before_contact >= 0
+        and final_binbou_pos >= 0
+        and final_binbou_pos != binbou_before_contact
+    ):
+        binbou_reset_path_indices = build_path(binbou_before_contact, final_binbou_pos)
 
     st.session_state.animation_event = {
         "position": new_pos,
-        "binbou_pos": st.session_state.binbou_pos,
+        "binbou_pos": final_binbou_pos,
+        "binbou_start_pos": old_binbou_pos,
+        "binbou_path_indices": binbou_path_indices,
+        "binbou_reset_path_indices": binbou_reset_path_indices,
         "path_indices": build_path(old_pos, new_pos),
         "dice": dice,
         "win": False,
@@ -773,7 +893,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #wrap{{display:flex;gap:10px;padding:8px;height:100vh}}
 #board-col{{flex:1;min-width:0}}
 #right-col{{width:200px;display:flex;flex-direction:column;gap:8px}}
-#board-container{{position:relative;width:100%;aspect-ratio:1340/1080;border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
+#board-container{{position:relative;width:100%;aspect-ratio:{ORIGINAL_WIDTH}/{ORIGINAL_HEIGHT};border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
 .token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
 #token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
@@ -1044,12 +1164,62 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   }}
 
   function runWrongAnim(){{wrongOverlay.classList.add('show');setTimeout(()=>wrongOverlay.classList.remove('show'),1800);}}
-  function runGhostAnim(){{
+  function runGhostAnim(onDone){{
     const effect=d.binbouEffect||{{}};
     ghostTxt.textContent=effect.message||'먹보유령 효과 발생!';
     document.getElementById('ghost-emoji').textContent=effect.type==='escaped'?'💨':'👿';
     ghostOverlay.classList.add('show');
-    setTimeout(()=>ghostOverlay.classList.remove('show'),2200);
+    setTimeout(()=>{{ghostOverlay.classList.remove('show');onDone&&onDone();}},2200);
+  }}
+
+  function animateGhostToken(pathIndices,doneCallback){{
+    if(!pathIndices||pathIndices.length===0){{doneCallback&&doneCallback();return;}}
+    tokenBinbou.style.display='flex';
+    if(pathIndices.length===1){{
+      const pt=d.points[d.stations[pathIndices[0]]];
+      if(pt)placeTokenAt(tokenBinbou,pt.x,pt.y);
+      doneCallback&&doneCallback();return;
+    }}
+    const ctrl=buildSpline(pathIndices);
+    const curve=sampleSpline(ctrl,Math.max(40,pathIndices.length*16));
+    const finalName=d.stations[pathIndices[pathIndices.length-1]];
+    const totalMs=Math.min(pathIndices.length*170,1500);
+    const t0=performance.now();
+    function frame(now){{
+      const rawT=Math.min((now-t0)/totalMs,1),eased=easeInOut5(rawT);
+      const idx=Math.min(Math.floor(eased*(curve.length-1)),curve.length-1);
+      const pt=curve[idx];
+      placeTokenAt(tokenBinbou,pt.x,pt.y);
+      if(rawT<1)requestAnimationFrame(frame);
+      else{{
+        const snap=d.points[finalName];
+        if(snap)placeTokenAt(tokenBinbou,snap.x,snap.y);
+        doneCallback&&doneCallback();
+      }}
+    }}
+    requestAnimationFrame(frame);
+  }}
+
+  function showWinOverlay(){{
+    if(!d.winner)return;
+    winOverlay.classList.add('show');
+    document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';
+  }}
+
+  function runGhostSequence(ev,onDone){{
+    const chasePath=(ev&&ev.binbou_path_indices)||[];
+    const resetPath=(ev&&ev.binbou_reset_path_indices)||[];
+    const afterReset=()=>{{onDone&&onDone();}};
+    const resetGhost=()=>{{
+      if(resetPath.length>0)animateGhostToken(resetPath,afterReset);
+      else afterReset();
+    }};
+    const afterChase=()=>{{
+      if(d.binbouEffect)runGhostAnim(resetGhost);
+      else resetGhost();
+    }};
+    if(chasePath.length>0)animateGhostToken(chasePath,afterChase);
+    else afterChase();
   }}
 
   if(d.playSound==='correct')runConfetti();
@@ -1058,34 +1228,44 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   function initBoard(){{
     drawDots();
     const ev=d.event,hasMove=ev&&ev.path_indices&&ev.path_indices.length>1;
-    if(d.binbou_pos>=0){{
+
+    // 이동 이벤트가 있으면 유령은 '이동 전 위치'에서 시작합니다.
+    const ghostStart=(ev&&Number.isInteger(ev.binbou_start_pos))?ev.binbou_start_pos:d.binbou_pos;
+    if(ghostStart>=0){{
       tokenBinbou.style.display='flex';
-      const bpt=d.points[d.stations[d.binbou_pos]];
+      const bpt=d.points[d.stations[ghostStart]];
       if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+    }}else{{
+      tokenBinbou.style.display='none';
     }}
+
     if(hasMove&&ev.dice){{
       const startPt=d.points[d.stations[ev.path_indices[0]]];
       if(startPt)placeTokenAt(tokenPlayer,startPt.x,startPt.y);
       runDiceAnim(ev.dice,()=>{{
         animateToken(ev.path_indices,()=>{{
-          if(d.binbou_pos>=0){{
-            const bpt2=d.points[d.stations[d.binbou_pos]];
-            if(bpt2){{
-              tokenBinbou.style.transition='left .7s ease,top .7s ease';
-              placeTokenAt(tokenBinbou,bpt2.x,bpt2.y);
+          runGhostSequence(ev,()=>{{
+            if(d.binbou_pos>=0){{
+              tokenBinbou.style.display='flex';
+              const finalGhostPt=d.points[d.stations[d.binbou_pos]];
+              if(finalGhostPt)placeTokenAt(tokenBinbou,finalGhostPt.x,finalGhostPt.y);
             }}
-          }}
-          if(d.binbouEffect)runGhostAnim();
+            showWinOverlay();
+          }});
         }});
       }});
     }}else{{
       const pt=d.points[d.stations[d.position]];
       if(pt){{placeTokenAt(tokenPlayer,pt.x,pt.y);label.textContent=d.stations[d.position];label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
-      if(d.binbouEffect)runGhostAnim();
+      if(d.binbou_pos>=0){{
+        tokenBinbou.style.display='flex';
+        const bpt=d.points[d.stations[d.binbou_pos]];
+        if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+      }}
+      if(d.binbouEffect)runGhostAnim(showWinOverlay);else showWinOverlay();
     }}
     const logEl=document.getElementById('event-log');
     (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
-    if(d.winner){{winOverlay.classList.add('show');document.getElementById('win-details').textContent='총 '+(d.turns||0)+'턴 · '+(d.score||0)+'점 · 목적지 '+(d.destReached||0)+'회';}}
     if(d.soundEnabled&&d.playSound){{
       try{{
         const actx=new(window.AudioContext||window.webkitAudioContext)();
@@ -1131,6 +1311,11 @@ with st.sidebar:
     all_cats = QUIZ_CATEGORIES
     if "selected_categories" not in st.session_state:
         st.session_state.selected_categories = all_cats[:]
+    else:
+        # 이전 버전 세션에 남아 있을 수 있는 더 이상 지원하지 않는 카테고리를 제거합니다.
+        st.session_state.selected_categories = [
+            c for c in st.session_state.selected_categories if c in all_cats
+        ]
     for cat in all_cats:
         checked = cat in st.session_state.selected_categories
         if st.checkbox(cat, value=checked, key=f"cat_{cat}"):
@@ -1161,21 +1346,38 @@ with st.sidebar:
             with col_a:
                 st.caption(f"{item['name']}\n{item['desc']}")
             with col_b:
-                if st.button("사용", key=f"use_{item_slot}_{item_key}_{st.session_state.quiz_key}", use_container_width=True):
-                    if item_key == "double_move":
-                        st.session_state.active_item = "double_move"
-                        st.session_state.hand_items.remove(item_key)
-                    elif item_key == "shield":
-                        st.session_state.shield_active = True
-                        st.session_state.hand_items.remove(item_key)
-                        add_event_log("🛡️ 방어 카드 준비!")
-                    elif item_key == "score_up":
-                        st.session_state.score_x2 = True
-                        st.session_state.hand_items.remove(item_key)
-                        add_event_log("💎 점수 2배 카드 준비!")
-                    elif item_key == "skip_penalty":
-                        st.info("✨ 뒤로 가기 주사위 시 자동 사용됩니다.")
-                    st.rerun()
+                if item_key == "skip_penalty":
+                    st.caption("오답 시 자동 사용")
+                    can_use = False
+                elif item_key == "double_move":
+                    can_use = phase == "ready_to_roll" and st.session_state.active_item is None
+                elif item_key == "shield":
+                    can_use = phase == "ready_to_roll" and not st.session_state.shield_active
+                elif item_key == "score_up":
+                    can_use = phase == "answering_quiz" and not st.session_state.score_x2
+                else:
+                    can_use = False
+
+                if item_key != "skip_penalty":
+                    if st.button(
+                        "사용",
+                        key=f"use_{item_slot}_{item_key}_{st.session_state.quiz_key}",
+                        use_container_width=True,
+                        disabled=not can_use,
+                    ):
+                        if item_key == "double_move":
+                            st.session_state.active_item = "double_move"
+                            st.session_state.hand_items.remove(item_key)
+                            add_event_log("🚄 2배 이동 카드 준비!")
+                        elif item_key == "shield":
+                            st.session_state.shield_active = True
+                            st.session_state.hand_items.remove(item_key)
+                            add_event_log("🛡️ 방어 카드 준비!")
+                        elif item_key == "score_up":
+                            st.session_state.score_x2 = True
+                            st.session_state.hand_items.remove(item_key)
+                            add_event_log("💎 점수 2배 카드 준비!")
+                        st.rerun()
         st.markdown("---")
 
     if phase == "ready_to_roll":
@@ -1209,7 +1411,7 @@ with st.sidebar:
             st.subheader(title)
             if st.session_state.score_x2:
                 st.warning("💎 점수 2배 활성화! 정답 시 20점!")
-            cat_colors = {"수학": "🔵", "국어": "🟢", "상식": "🟡", "과학": "🟠", "영어": "🔴", "수수께끼": "🟣"}
+            cat_colors = {"국어": "🟢", "상식": "🟡", "과학": "🟠", "영어": "🔴", "수수께끼": "🟣"}
             icon = cat_colors.get(quiz['category'], '⚪')
             st.info(f"{icon} [{quiz['category']}]\n\n**{quiz['question']}**")
             for opt_idx, opt in enumerate(quiz["options"]):
