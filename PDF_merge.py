@@ -1090,9 +1090,9 @@ def submit_answer(answer):
 def render_board(map_bytes, is_jpg):
     img_mime  = "jpeg" if is_jpg else "png"
     image_b64 = base64.b64encode(map_bytes).decode("ascii")
+    image_data_uri = f"data:image/{img_mime};base64,{image_b64}"
 
     payload = {
-        "image":           f"data:image/{img_mime};base64,{image_b64}",
         "stations":        STATIONS,
         "points":          STATION_POINTS,
         "position":        st.session_state.position,
@@ -1118,7 +1118,9 @@ def render_board(map_bytes, is_jpg):
         "celebrationEffect": st.session_state.get("celebration_event"),
         "ladderAnimation": st.session_state.get("ladder_animation"),
     }
-    pj = json.dumps(payload, ensure_ascii=False)
+    # JSON is embedded in a <script type="application/json"> tag. Escape a literal
+    # closing-script sequence so a player name cannot accidentally break the board HTML.
+    pj = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
 
     html = f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
@@ -1150,7 +1152,6 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 @keyframes labelPop{{0%{{opacity:0;transform:translate(-50%,-185%) scale(.8)}}100%{{opacity:1;transform:translate(-50%,-215%) scale(1)}}}}
 .pbar-wrap{{position:absolute;bottom:0;left:0;right:0;height:7px;background:rgba(255,255,255,.1);z-index:20}}
 .pbar{{height:100%;background:linear-gradient(90deg,#2ecc71,#f1c40f,#e74c3c);transition:width .7s ease}}
-#dest-banner{{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.8);border:2px solid #f1c40f;border-radius:10px;padding:5px 10px;color:#f1c40f;font-size:12px;font-weight:700;z-index:20}}
 #dice-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);align-items:center;justify-content:center;z-index:40;border-radius:14px;flex-direction:column;gap:12px}}
 #dice-overlay.show{{display:flex}}
 #dice-canvas{{width:120px;height:120px;border-radius:18px;box-shadow:0 0 40px rgba(241,196,15,.7)}}
@@ -1208,7 +1209,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 <div id="wrap">
   <div id="board-col">
     <div id="board-container">
-      <img id="board-img" src="" alt="노선도">
+      <img id="board-img" src="{image_data_uri}" alt="서울 지하철 2호선 게임 보드">
       <div id="token-player" class="token train-token"><img id="token-player-img" alt="열차"></div>
       <div id="token-binbou" class="token" style="display:none">👿</div>
       <div id="station-label" class="slabel" style="display:none"></div>
@@ -1273,7 +1274,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     </div>
   </div>
 </div>
-<script id="data-script type="application/json">{pj}</script>
+<script id="data-script" type="application/json">{pj}</script>
 <script>
 (function(){{
   const d=JSON.parse(document.getElementById('data-script').textContent);
@@ -1683,9 +1684,9 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     }}
   }}
 
-  // 이미지 로드 후 보드 초기화
-  boardImg.src=d.image;
-  if(boardImg.complete){{initBoard();}}
+  // 맵 이미지는 HTML에서 직접 로드합니다. JavaScript 오류가 생겨도 맵 자체는 보이도록
+  // 하고, 토큰/이벤트 보드는 이미지 로드가 끝난 뒤 초기화합니다.
+  if(boardImg.complete && boardImg.naturalWidth>0){{initBoard();}}
   else{{boardImg.onload=initBoard;boardImg.onerror=()=>{{console.error('이미지 로드 실패');initBoard();}};}}
 }})();
 </script>
