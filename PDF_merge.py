@@ -204,14 +204,9 @@ def render_train_preview_gallery(selected_train: str) -> str:
     return "<div style='display:flex;gap:8px;margin:6px 0 4px 0'>" + "".join(cards) + "</div>"
 
 SQUARE_TYPES = {
+    # 남겨 둔 특수 칸은 파란 칸과 보물상자 칸뿐입니다.
     "홍대입구": "blue",  "강남": "blue",  "왕십리": "blue",
     "선릉":     "blue",  "시청": "blue",  "이대":   "blue",
-    "신도림":   "red",   "사당": "red",   "동대문역사문화공원": "red",
-    "구로디지털단지": "red",
-    "을지로3가": "star", "잠실": "star",  "교대":   "star",
-    "합정":     "star",  "성수": "star",
-    "신림":     "trap",  "구의": "trap",
-    # 어린이가 한 바퀴를 도는 동안 여러 번 만날 수 있도록 일반 역 5곳을 보물상자로 지정합니다.
     "아현": "treasure", "문래": "treasure", "봉천": "treasure",
     "역삼": "treasure", "잠실나루": "treasure",
 }
@@ -225,14 +220,6 @@ BLUE_EVENTS = [
     {"msg": "🎶 축제! 점수 +15점 + 추가 주사위!", "score": 15, "extra_roll": True},
 ]
 
-RED_EVENTS = [
-    {"msg": "💸 사건 발생! 점수 -10점!", "score": -10},
-    {"msg": "🚧 공사 중! 2칸 후퇴!", "move": -2},
-    {"msg": "😈 먹보유령 접근! 먹보유령이 5칸 앞으로 이동!", "push_binbou": -5},
-    {"msg": "⛔ 운행 중단! 이번 턴 퀴즈 2문제!", "double_quiz": True},
-    {"msg": "🌧️ 폭우! 1칸 뒤로 이동!", "move": -1},
-]
-
 TREASURE_EVENTS = [
     {"msg": "💰 황금 동전 발견! 점수 +30점!", "score": 30},
     {"msg": "🃏 반짝이는 아이템 카드 발견!", "random_item": True},
@@ -241,18 +228,12 @@ TREASURE_EVENTS = [
     {"msg": "🌈 대박 보물! 점수 +20점 + 아이템 카드!", "score": 20, "random_item": True},
 ]
 
-TRAP_EVENTS = [
-    {"msg": "👿 먹보유령 함정! 탈출 미니게임에 도전하세요!", "binbou_attach": True, "ghost_penalty": 20},
-]
-
 ITEMS = {
     "double_move":  {"name": "🚄 2배 이동 카드", "desc": "이번 주사위 결과를 2배로!"},
-    "shield":       {"name": "🛡️ 방어 카드",    "desc": "빨간 칸 이벤트를 1회 무효화"},
     "skip_penalty": {"name": "✨ 면제 카드",     "desc": "뒤로 가기 주사위 면제"},
     "score_up":     {"name": "💎 점수 2배 카드", "desc": "다음 정답 점수 2배"},
 }
 
-DEST_CANDIDATES = ["강남", "홍대입구", "왕십리", "선릉", "시청", "을지로입구", "합정", "교대"]
 QUIZ_CATEGORIES = ["국어", "상식", "과학", "영어", "수수께끼"]
 
 QUIZZES = [
@@ -502,10 +483,7 @@ def init_game(keep_name=True):
     st.session_state.bonus_dice        = 0
     st.session_state.hand_items        = []
     st.session_state.active_item       = None
-    st.session_state.shield_active     = False
     st.session_state.score_x2         = False
-    st.session_state.destination       = random.choice(DEST_CANDIDATES)
-    st.session_state.dest_reached      = 0
     st.session_state.event_log         = []
     st.session_state.ghost_game        = None
     st.session_state.treasure_effect   = None
@@ -526,8 +504,7 @@ def start_game():
     train = TRAIN_TYPES[st.session_state.selected_train]
     st.session_state.game_phase   = "ready_to_roll"
     st.session_state.last_message = (
-        f"🚄 {name}님의 {train['name']} 출발! {GOAL_STATION}역을 향해 달립니다!\n"
-        f"🎯 현재 목적지: {st.session_state.destination}"
+        f"🚄 {name}님의 {train['name']} 출발! {GOAL_STATION}역을 향해 달립니다!"
     )
 
 
@@ -571,6 +548,8 @@ def add_event_log(msg):
 
 def add_item(item_key):
     """아이템을 손패에 추가하고 성공 여부를 반환합니다."""
+    # 이전 버전 세션에 남아 있을 수 있는 삭제된 아이템을 정리합니다.
+    st.session_state.hand_items = [i for i in st.session_state.hand_items if i in ITEMS]
     hand = st.session_state.hand_items
     if len(hand) >= 3:
         add_event_log("🎒 아이템 보관함이 가득 찼습니다!")
@@ -762,7 +741,6 @@ def continue_after_forward(base_msg, double_quiz, did_win):
             base_msg
             + f"\n\n🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!"
             + f"\n총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점"
-            + f"\n목적지 도달: {st.session_state.dest_reached}회"
         )
         return
 
@@ -853,31 +831,12 @@ def resolve_ghost_minigame(choice_index):
         st.session_state.last_message = base_msg + "\n\n다시 주사위를 굴려 보세요."
 
 
-def apply_destination_reward(station_name, messages):
-    """칸 종류와 무관하게 목적지 도착 보상을 적용합니다."""
-    if station_name != st.session_state.destination:
-        return
-
-    st.session_state.score += 50
-    st.session_state.dest_reached += 1
-    add_event_log(f"🎯 목적지 {station_name} 도달! +50점!")
-    messages.append(f"🎯 목적지 {station_name}에 도착! +50점 획득!")
-
-    candidates = [d for d in DEST_CANDIDATES if d != station_name]
-    if candidates:
-        st.session_state.destination = random.choice(candidates)
-        messages.append(f"📌 새 목적지: {st.session_state.destination}")
-
-
 def apply_square_event(station_name, pos):
+    """파란 칸과 보물상자 칸 이벤트만 처리합니다."""
     sq = SQUARE_TYPES.get(station_name, "normal")
     messages = []
     double_quiz = False
     ghost_penalty = 10
-
-    # 목적지 도착은 칸 종류와 독립적으로 판정합니다.
-    reached_destination = station_name == st.session_state.destination
-    apply_destination_reward(station_name, messages)
 
     if sq == "blue":
         ev = random.choice(BLUE_EVENTS)
@@ -893,36 +852,6 @@ def apply_square_event(station_name, pos):
         if ev.get("push_binbou", 0) > 0:
             move_binbou(-ev["push_binbou"])
             messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
-
-    elif sq == "red":
-        if st.session_state.shield_active:
-            st.session_state.shield_active = False
-            messages.append("🛡️ 방어 카드로 빨간 칸 이벤트 무효화!")
-            add_event_log("🛡️ 방어 카드 발동!")
-        else:
-            ev = random.choice(RED_EVENTS)
-            messages.append(ev["msg"])
-            if ev.get("score"):
-                st.session_state.score = max(0, st.session_state.score + ev["score"])
-            if ev.get("move"):
-                new_pos = max(0, min(pos + ev["move"], GOAL_INDEX))
-                st.session_state.position = new_pos
-                sync_binbou_attachment(log_change=False)
-                messages.append(f"📍 → {STATIONS[new_pos]}역으로 이동!")
-            if ev.get("double_quiz"):
-                double_quiz = True
-            if ev.get("push_binbou", 0) < 0:
-                move_binbou(-ev["push_binbou"])
-
-    elif sq == "star":
-        if not reached_destination:
-            messages.append(f"⭐ 목적지 카드 칸! 현재 목적지: {st.session_state.destination}")
-        if random.random() < 0.4:
-            item = random.choice(list(ITEMS.keys()))
-            if add_item(item):
-                messages.append(f"🃏 보너스 아이템: {ITEMS[item]['name']}!")
-            else:
-                messages.append("🎒 보관함이 가득 차 보너스 아이템을 받지 못했습니다.")
 
     elif sq == "treasure":
         ev = random.choice(TREASURE_EVENTS)
@@ -947,17 +876,7 @@ def apply_square_event(station_name, pos):
         st.session_state.play_sound = "treasure"
         add_event_log(f"🎁 {station_name}역 보물상자: {treasure_msg}")
 
-    elif sq == "trap":
-        ev = random.choice(TRAP_EVENTS)
-        messages.append(ev["msg"])
-        ghost_penalty = int(ev.get("ghost_penalty", 20))
-        if ev.get("binbou_attach"):
-            # 함정에서는 유령을 즉시 플레이어 위치로 소환하고 미니게임을 시작합니다.
-            st.session_state.binbou_pos = st.session_state.position
-            sync_binbou_attachment(log_change=False)
-
     return "\n\n".join(messages) if messages else None, double_quiz, ghost_penalty
-
 
 def move_forward():
     if st.session_state.game_phase != "ready_to_roll":
@@ -1184,14 +1103,12 @@ def render_board(map_bytes, is_jpg):
         "playerName":      st.session_state.player_name,
         "trainKey":        st.session_state.get("selected_train", "KTX 청룡"),
         "train":           TRAIN_TYPES.get(st.session_state.get("selected_train", "KTX 청룡"), TRAIN_TYPES["KTX 청룡"]),
-        "destination":     st.session_state.destination,
         "lastDice":        st.session_state.last_dice_value,
         "phase":           st.session_state.game_phase,
         "winner":          st.session_state.winner,
         "score":           st.session_state.score,
         "turns":           st.session_state.turns,
         "streak":          st.session_state.correct_streak,
-        "destReached":     st.session_state.dest_reached,
         "squareTypes":     SQUARE_TYPES,
         "soundEnabled":    st.session_state.get("sound_enabled", True),
         "playSound":       st.session_state.get("play_sound"),
@@ -1224,14 +1141,10 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 .sdot{{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);z-index:5}}
 .sdot-normal{{background:rgba(255,255,255,.12)}}
 .sdot-blue{{background:rgba(52,152,219,.6);box-shadow:0 0 7px rgba(52,152,219,.8)}}
-.sdot-red{{background:rgba(231,76,60,.6);box-shadow:0 0 7px rgba(231,76,60,.8)}}
-.sdot-star{{background:rgba(241,196,15,.7);box-shadow:0 0 9px rgba(241,196,15,.9);width:14px;height:14px;animation:starGlow 1.8s ease-in-out infinite}}
-.sdot-trap{{background:rgba(142,68,173,.7);box-shadow:0 0 7px rgba(142,68,173,.9)}}
 .sdot-treasure{{background:#ff9f1c;box-shadow:0 0 10px 3px rgba(255,159,28,.75);width:15px;height:15px;animation:treasureDot 1.2s ease-in-out infinite}}
 @keyframes treasureDot{{0%,100%{{transform:translate(-50%,-50%) scale(1) rotate(0)}}50%{{transform:translate(-50%,-50%) scale(1.35) rotate(12deg)}}}}
 .sdot-goal{{background:#00ff88;box-shadow:0 0 14px 5px rgba(0,255,136,.8);width:18px;height:18px;animation:goalGlow 1s ease-in-out infinite}}
 .sdot-active{{outline:3px solid #fff;outline-offset:2px}}
-@keyframes starGlow{{0%,100%{{transform:translate(-50%,-50%) scale(1)}}50%{{transform:translate(-50%,-50%) scale(1.5)}}}}
 @keyframes goalGlow{{0%,100%{{box-shadow:0 0 10px 4px rgba(0,255,136,.8)}}50%{{box-shadow:0 0 22px 10px rgba(0,255,136,.4)}}}}
 .slabel{{position:absolute;transform:translate(-50%,-215%);background:rgba(10,0,30,.9);color:#2ecc71;padding:2px 7px;border-radius:5px;font-size:11px;white-space:nowrap;z-index:16;pointer-events:none;border:1px solid #2ecc71;animation:labelPop .35s ease-out}}
 @keyframes labelPop{{0%{{opacity:0;transform:translate(-50%,-185%) scale(.8)}}100%{{opacity:1;transform:translate(-50%,-215%) scale(1)}}}}
@@ -1299,7 +1212,6 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div id="token-player" class="token train-token"><img id="token-player-img" alt="열차"></div>
       <div id="token-binbou" class="token" style="display:none">👿</div>
       <div id="station-label" class="slabel" style="display:none"></div>
-      <div id="dest-banner">🎯 목적지: <span id="dest-name">-</span></div>
       <div class="pbar-wrap"><div class="pbar" id="progress-bar" style="width:0%"></div></div>
       <div id="dice-overlay">
         <canvas id="dice-canvas" width="240" height="240"></canvas>
@@ -1340,7 +1252,6 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="stat-row"><span>점수</span><span class="stat-val" id="s-score">0</span></div>
       <div class="stat-row"><span>턴</span><span class="stat-val" id="s-turns">0</span></div>
       <div class="stat-row"><span>스트릭</span><span class="stat-val" id="s-streak">0</span></div>
-      <div class="stat-row"><span>목적지</span><span class="stat-val" id="s-dest">0회</span></div>
       <div class="stat-row"><span>열차</span><span class="stat-val" id="s-train">KTX 청룡</span></div>
     </div>
     <div class="panel">
@@ -1357,15 +1268,12 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     <div class="panel">
       <div class="panel-title">🗺️ 칸 범례</div>
       <div class="legend-row"><div class="legend-dot" style="background:#3498db"></div><span>파란칸 (보너스)</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#e74c3c"></div><span>빨간칸 (패널티)</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#f1c40f"></div><span>별칸 (목적지)</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#8e44ad"></div><span>함정칸</span></div>
       <div class="legend-row"><div class="legend-dot" style="background:#ff9f1c"></div><span>보물상자칸</span></div>
       <div class="legend-row"><div class="legend-dot" style="background:#00ff88"></div><span>도착역</span></div>
     </div>
   </div>
 </div>
-<script id="data-script" type="application/json">{pj}</script>
+<script id="data-script type="application/json">{pj}</script>
 <script>
 (function(){{
   const d=JSON.parse(document.getElementById('data-script').textContent);
@@ -1396,9 +1304,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('s-score').textContent=d.score||0;
   document.getElementById('s-turns').textContent=d.turns||0;
   document.getElementById('s-streak').textContent=d.streak||0;
-  document.getElementById('s-dest').textContent=(d.destReached||0)+'회';
   document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX 청룡';
-  document.getElementById('dest-name').textContent=d.destination||'-';
   if(d.train){{
     if(playerImg){{
       playerImg.src=d.train.image||'';
@@ -1868,8 +1774,6 @@ with st.sidebar:
                     can_use = False
                 elif item_key == "double_move":
                     can_use = phase == "ready_to_roll" and st.session_state.active_item is None
-                elif item_key == "shield":
-                    can_use = phase == "ready_to_roll" and not st.session_state.shield_active
                 elif item_key == "score_up":
                     can_use = phase == "answering_quiz" and not st.session_state.score_x2
                 else:
@@ -1886,10 +1790,6 @@ with st.sidebar:
                             st.session_state.active_item = "double_move"
                             st.session_state.hand_items.remove(item_key)
                             add_event_log("🚄 2배 이동 카드 준비!")
-                        elif item_key == "shield":
-                            st.session_state.shield_active = True
-                            st.session_state.hand_items.remove(item_key)
-                            add_event_log("🛡️ 방어 카드 준비!")
                         elif item_key == "score_up":
                             st.session_state.score_x2 = True
                             st.session_state.hand_items.remove(item_key)
@@ -1959,7 +1859,6 @@ with st.sidebar:
         st.success("🎉 건대입구 도착! 게임 클리어!")
         st.metric("최종 점수",   st.session_state.score)
         st.metric("총 턴 수",    st.session_state.turns)
-        st.metric("목적지 도달", f"{st.session_state.dest_reached}회")
         if st.button("🔄 다시 하기", use_container_width=True, type="primary"):
             init_game(keep_name=True); st.rerun()
 
@@ -1969,7 +1868,6 @@ with st.sidebar:
 **게임 방법**
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
-- 🎯 목적지 카드 달성 시 +50점
 - 👿 먹보유령에게 잡히면 4개 사다리 중 하나를 선택! 2개는 탈출, 2개는 잡힘
 - 🎁 주황색 보물상자 칸에서 특별 보상 획득
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
@@ -1983,13 +1881,9 @@ with st.sidebar:
         total = len(STATIONS)
         st.progress(pos / (total - 1) if total > 1 else 0)
         st.caption(f"📍 **{STATIONS[pos]}** ({pos+1}/{total})")
-        st.caption(f"🎯 목적지: **{st.session_state.destination}**")
 
     with st.expander("🗺️ 칸 종류 설명"):
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
-        st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·먹보유령)")
-        st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 먹보유령 소환! 4개 사다리 미니게임에 도전")
         st.caption("🟠 **보물상자 칸** — 점수·아이템·주사위 보너스 등 특별 보상")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
