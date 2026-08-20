@@ -83,6 +83,12 @@ STATION_POINTS = {
     for name, (x, y) in STATION_PIXELS.items()
 }
 
+TRAIN_TYPES = {
+    "KTX":  {"name": "KTX",   "emoji": "🚄", "color": "#2f80ed", "glow": "rgba(47,128,237,.85)"},
+    "SRT":  {"name": "SRT",   "emoji": "🚅", "color": "#8e44ad", "glow": "rgba(142,68,173,.85)"},
+    "신칸센": {"name": "신칸센", "emoji": "🚆", "color": "#e74c3c", "glow": "rgba(231,76,60,.85)"},
+}
+
 SQUARE_TYPES = {
     "홍대입구": "blue",  "강남": "blue",  "왕십리": "blue",
     "선릉":     "blue",  "시청": "blue",  "이대":   "blue",
@@ -91,6 +97,9 @@ SQUARE_TYPES = {
     "을지로3가": "star", "잠실": "star",  "교대":   "star",
     "합정":     "star",  "성수": "star",
     "신림":     "trap",  "구의": "trap",
+    # 어린이가 한 바퀴를 도는 동안 여러 번 만날 수 있도록 일반 역 5곳을 보물상자로 지정합니다.
+    "아현": "treasure", "문래": "treasure", "봉천": "treasure",
+    "역삼": "treasure", "잠실나루": "treasure",
 }
 
 BLUE_EVENTS = [
@@ -110,8 +119,16 @@ RED_EVENTS = [
     {"msg": "🌧️ 폭우! 1칸 뒤로 이동!", "move": -1},
 ]
 
+TREASURE_EVENTS = [
+    {"msg": "💰 황금 동전 발견! 점수 +30점!", "score": 30},
+    {"msg": "🃏 반짝이는 아이템 카드 발견!", "random_item": True},
+    {"msg": "🧿 유령 밀어내기 부적! 먹보유령이 5칸 뒤로!", "push_binbou": 5},
+    {"msg": "⚡ 터보 티켓 발견! 다음 주사위 +3!", "bonus_dice": 3},
+    {"msg": "🌈 대박 보물! 점수 +20점 + 아이템 카드!", "score": 20, "random_item": True},
+]
+
 TRAP_EVENTS = [
-    {"msg": "👿 먹보유령 등장! 붙잡혔습니다! 점수 -20점!", "score": -20, "binbou_attach": True},
+    {"msg": "👿 먹보유령 함정! 탈출 미니게임에 도전하세요!", "binbou_attach": True, "ghost_penalty": 20},
 ]
 
 ITEMS = {
@@ -342,7 +359,11 @@ QUIZZES = [
 # ═══════════════════════════════════════════════════
 def init_game(keep_name=True):
     old_name = st.session_state.get("player_name", "플레이어")
+    old_train = st.session_state.get("selected_train", "KTX")
+    if old_train not in TRAIN_TYPES:
+        old_train = "KTX"
     st.session_state.player_name       = old_name if keep_name else "플레이어"
+    st.session_state.selected_train    = old_train
     st.session_state.position          = 0
     st.session_state.binbou_pos        = -8
     st.session_state.binbou_attached   = False
@@ -369,6 +390,9 @@ def init_game(keep_name=True):
     st.session_state.destination       = random.choice(DEST_CANDIDATES)
     st.session_state.dest_reached      = 0
     st.session_state.event_log         = []
+    st.session_state.ghost_game        = None
+    st.session_state.treasure_effect   = None
+    st.session_state.celebration_event = None
 
 
 if "position" not in st.session_state:
@@ -377,11 +401,14 @@ if "position" not in st.session_state:
 
 def start_game():
     name = st.session_state.get("player_name", "플레이어")
+    train_key = st.session_state.get("selected_train", "KTX")
     init_game(keep_name=True)
-    st.session_state.player_name  = name
+    st.session_state.player_name   = name
+    st.session_state.selected_train = train_key if train_key in TRAIN_TYPES else "KTX"
+    train = TRAIN_TYPES[st.session_state.selected_train]
     st.session_state.game_phase   = "ready_to_roll"
     st.session_state.last_message = (
-        f"🚃 {name}님, 출발! {GOAL_STATION}역을 향해 달립니다!\n"
+        f"{train['emoji']} {name}님의 {train['name']} 출발! {GOAL_STATION}역을 향해 달립니다!\n"
         f"🎯 현재 목적지: {st.session_state.destination}"
     )
 
@@ -474,24 +501,21 @@ def sync_binbou_attachment(log_change=True):
     return now_attached
 
 
-def reset_binbou_after_catch():
-    """붙잡힘 효과가 끝난 뒤 유령을 플레이어보다 6칸 뒤로 보냅니다."""
-    st.session_state.binbou_pos = max(
-        -8,
-        st.session_state.position - BINBOU_RESET_DISTANCE,
-    )
+def reset_binbou_after_catch(distance=BINBOU_RESET_DISTANCE):
+    """먹보유령을 플레이어 뒤쪽으로 재배치합니다."""
+    distance = max(1, int(distance))
+    st.session_state.binbou_pos = max(-8, st.session_state.position - distance)
     st.session_state.binbou_attached = False
 
 
 def move_binbou(steps):
     bp = st.session_state.binbou_pos + steps
     st.session_state.binbou_pos = max(-8, min(bp, GOAL_INDEX))
-    # 실제 감점과 재배치는 resolve_binbou_contact()에서 한 번만 처리합니다.
     return sync_binbou_attachment(log_change=False)
 
 
 def show_binbou_effect(message, penalty, effect_type="caught"):
-    """먹보유령 효과를 점수, 로그, 보드 오버레이에 동시에 반영합니다."""
+    """먹보유령 결과를 점수, 로그, 보드 오버레이에 반영합니다."""
     penalty = max(0, int(penalty))
     if penalty:
         st.session_state.score = max(0, st.session_state.score - penalty)
@@ -505,31 +529,115 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
     add_event_log(message)
 
 
-def resolve_binbou_contact(was_attached=False, trap_penalty_already_applied=False):
-    """접촉 효과를 한 번 적용한 뒤 유령을 6칸 뒤에서 다시 출발시킵니다."""
-    now_attached = sync_binbou_attachment(log_change=False)
-    if not now_attached:
-        # 이전 버전의 세션에 부착 상태가 남아 있더라도 지속시키지 않습니다.
-        st.session_state.binbou_attached = False
-        return None
+def begin_ghost_minigame(penalty, resume):
+    """유령 접촉 시 즉시 감점하지 않고 3문 탈출 미니게임을 시작합니다."""
+    penalty = max(0, int(penalty))
+    st.session_state.binbou_pos = st.session_state.position
+    st.session_state.binbou_attached = True
+    st.session_state.ghost_game = {
+        "id": random.randint(100000, 999999),
+        # 세 문 중 한 문만 먹보유령 문입니다. 즉, 탈출 성공 확률은 2/3입니다.
+        "danger_door": random.randrange(3),
+        "penalty": penalty,
+        "resume": resume,
+    }
+    st.session_state.game_phase = "ghost_minigame"
+    st.session_state.binbou_effect = {
+        "id": random.randint(100000, 999999),
+        "type": "challenge",
+        "message": "👿 먹보유령에게 잡혔어요! 3개의 문 중 안전한 문을 골라 탈출하세요!",
+        "penalty": 0,
+    }
+    st.session_state.play_sound = "ghost"
+    st.session_state.last_message = (
+        resume.get("base_msg", "")
+        + "\n\n👿 **먹보유령 탈출 미니게임!** 세 문 중 하나를 골라 보세요. "
+          "두 문은 안전하고 한 문에만 먹보유령이 숨어 있어요!"
+    )
+    add_event_log("🚪 먹보유령 탈출 미니게임 시작!")
 
-    # 함정 칸의 -20점이 이미 적용된 경우에는 추가 감점을 하지 않습니다.
-    if trap_penalty_already_applied:
-        penalty = 0
-        message = (
-            "👿 먹보유령에게 붙잡혔습니다! 점수 -20점! "
-            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+
+def continue_after_forward(base_msg, double_quiz, did_win):
+    """이동·이벤트·유령 처리가 끝난 뒤 승리 또는 퀴즈 단계로 이어갑니다."""
+    if did_win:
+        st.session_state.play_sound = "win" if st.session_state.play_sound in (None, "dice") else st.session_state.play_sound
+        st.session_state.game_phase = "game_over"
+        st.session_state.winner = True
+        st.session_state.current_quiz = None
+        st.session_state.quiz_queue = []
+        st.session_state.last_message = (
+            base_msg
+            + f"\n\n🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!"
+            + f"\n총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점"
+            + f"\n목적지 도달: {st.session_state.dest_reached}회"
         )
+        return
+
+    if double_quiz:
+        st.session_state.quiz_queue = [get_random_quiz(), get_random_quiz()]
+        st.session_state.current_quiz = st.session_state.quiz_queue.pop(0)
+        st.session_state.game_phase = "answering_quiz"
+        base_msg += "\n\n📝 퀴즈 2문제 도전!"
     else:
-        penalty = 10
-        message = (
-            "👿 먹보유령에게 붙잡혔습니다! 점수 -10점! "
+        st.session_state.quiz_queue = []
+        st.session_state.current_quiz = get_random_quiz()
+        st.session_state.game_phase = "answering_quiz"
+        base_msg += "\n\n📝 사이드바에서 퀴즈를 풀어 보세요!"
+
+    st.session_state.last_message = base_msg
+    st.session_state.quiz_key += 1
+
+
+def resolve_ghost_minigame(choice_index):
+    """3문 미니게임 결과를 처리한 뒤 원래 게임 흐름으로 복귀합니다."""
+    game = st.session_state.get("ghost_game")
+    if not game:
+        return
+
+    choice_index = int(choice_index)
+    danger_door = int(game["danger_door"])
+    penalty = int(game.get("penalty", 10))
+    resume = game.get("resume", {})
+    ghost_start = st.session_state.position
+    success = choice_index != danger_door
+
+    if success:
+        result_msg = (
+            f"💨 {choice_index + 1}번 문 탈출 성공! 먹보유령을 따돌렸어요! "
+            "먹보유령이 8칸 뒤로 물러납니다."
+        )
+        show_binbou_effect(result_msg, 0, "escaped")
+        st.session_state.play_sound = "escape"
+        reset_binbou_after_catch(distance=8)
+    else:
+        result_msg = (
+            f"😵 {choice_index + 1}번 문에 먹보유령이 숨어 있었어요! 점수 -{penalty}점! "
             "먹보유령은 6칸 뒤에서 다시 따라옵니다."
         )
+        show_binbou_effect(result_msg, penalty, "caught")
+        reset_binbou_after_catch(distance=BINBOU_RESET_DISTANCE)
 
-    show_binbou_effect(message, penalty, "caught")
-    reset_binbou_after_catch()
-    return message
+    final_ghost = st.session_state.binbou_pos
+    reset_path = build_path(ghost_start, final_ghost) if final_ghost >= 0 else []
+    did_win = bool(resume.get("did_win", False))
+    st.session_state.animation_event = {
+        "position": st.session_state.position,
+        "binbou_pos": final_ghost,
+        "binbou_start_pos": ghost_start,
+        "binbou_path_indices": [],
+        "binbou_reset_path_indices": reset_path,
+        "path_indices": [st.session_state.position],
+        "dice": None,
+        "win": did_win,
+    }
+    st.session_state.ghost_game = None
+
+    base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
+    if resume.get("kind") == "forward":
+        continue_after_forward(base_msg, bool(resume.get("double_quiz", False)), did_win)
+    else:
+        st.session_state.game_phase = "ready_to_roll"
+        st.session_state.last_message = base_msg + "\n\n다시 주사위를 굴려 보세요."
 
 
 def apply_destination_reward(station_name, messages):
@@ -552,7 +660,7 @@ def apply_square_event(station_name, pos):
     sq = SQUARE_TYPES.get(station_name, "normal")
     messages = []
     double_quiz = False
-    trap_penalty_applied = False
+    ghost_penalty = 10
 
     # 목적지 도착은 칸 종류와 독립적으로 판정합니다.
     reached_destination = station_name == st.session_state.destination
@@ -603,18 +711,39 @@ def apply_square_event(station_name, pos):
             else:
                 messages.append("🎒 보관함이 가득 차 보너스 아이템을 받지 못했습니다.")
 
+    elif sq == "treasure":
+        ev = random.choice(TREASURE_EVENTS)
+        treasure_msg = ev["msg"]
+        if ev.get("score"):
+            st.session_state.score += int(ev["score"])
+        if ev.get("bonus_dice"):
+            st.session_state.bonus_dice += int(ev["bonus_dice"])
+        if ev.get("push_binbou", 0) > 0:
+            move_binbou(-int(ev["push_binbou"]))
+        if ev.get("random_item"):
+            item = random.choice(list(ITEMS.keys()))
+            if add_item(item):
+                treasure_msg += f" 획득 아이템: {ITEMS[item]['name']}"
+            else:
+                treasure_msg += " 하지만 아이템 보관함이 가득 찼어요."
+        messages.append(f"🎁 보물상자 OPEN! {treasure_msg}")
+        st.session_state.treasure_effect = {
+            "id": random.randint(100000, 999999),
+            "message": treasure_msg,
+        }
+        st.session_state.play_sound = "treasure"
+        add_event_log(f"🎁 {station_name}역 보물상자: {treasure_msg}")
+
     elif sq == "trap":
         ev = random.choice(TRAP_EVENTS)
         messages.append(ev["msg"])
-        if ev.get("score"):
-            st.session_state.score = max(0, st.session_state.score + ev["score"])
-            trap_penalty_applied = True
+        ghost_penalty = int(ev.get("ghost_penalty", 20))
         if ev.get("binbou_attach"):
-            # 미등장 상태에서도 플레이어 위치에 유령을 즉시 소환합니다.
+            # 함정에서는 유령을 즉시 플레이어 위치로 소환하고 미니게임을 시작합니다.
             st.session_state.binbou_pos = st.session_state.position
             sync_binbou_attachment(log_change=False)
 
-    return "\n\n".join(messages) if messages else None, double_quiz, trap_penalty_applied
+    return "\n\n".join(messages) if messages else None, double_quiz, ghost_penalty
 
 
 def move_forward():
@@ -622,16 +751,16 @@ def move_forward():
         return
 
     old_pos = st.session_state.position
-
-    # 이전 실행에서 남은 부착 상태는 다음 턴으로 지속하지 않습니다.
     if st.session_state.binbou_attached:
         reset_binbou_after_catch()
     old_binbou_pos = st.session_state.binbou_pos
 
+    st.session_state.play_sound = None
+    st.session_state.binbou_effect = None
+    st.session_state.treasure_effect = None
+
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
-
-    st.session_state.binbou_effect = None
     st.session_state.position = landing_pos
     st.session_state.last_dice_value = dice
     st.session_state.turns += 1
@@ -646,39 +775,25 @@ def move_forward():
         add_event_log("👿 먹보유령이 등장했습니다!")
 
     landing_station = STATIONS[landing_pos]
-    ev_msg, double_quiz, trap_penalty_applied = apply_square_event(landing_station, landing_pos)
+    ev_msg, double_quiz, ghost_penalty = apply_square_event(landing_station, landing_pos)
 
-    # 칸 이벤트까지 적용된 시점의 유령 위치를 저장합니다.
-    # 접촉이 일어나면 resolve_binbou_contact()가 이후 6칸 뒤로 재배치합니다.
+    # 칸 이벤트까지 처리한 뒤 실제 접촉 여부를 확인합니다. 감점은 미니게임 결과 뒤에 적용합니다.
+    touching_ghost = sync_binbou_attachment(log_change=False)
     binbou_before_contact = st.session_state.binbou_pos
-    contact_msg = resolve_binbou_contact(
-        False,
-        trap_penalty_already_applied=trap_penalty_applied,
-    )
 
     final_pos = st.session_state.position
     final_station = STATIONS[final_pos]
     final_binbou_pos = st.session_state.binbou_pos
 
-    # 플레이어 애니메이션 경로
     path_indices = build_path(old_pos, landing_pos)
     if final_pos != landing_pos:
         path_indices.extend(build_path(landing_pos, final_pos)[1:])
 
-    # 먹보유령 애니메이션 경로: 이전 위치 → 추격/접촉 위치 → (잡았으면) 6칸 뒤 재배치
     binbou_path_indices = []
     if old_binbou_pos >= 0 and binbou_before_contact >= 0:
         binbou_path_indices = build_path(old_binbou_pos, binbou_before_contact)
     elif old_binbou_pos < 0 and binbou_before_contact >= 0:
         binbou_path_indices = [binbou_before_contact]
-
-    binbou_reset_path_indices = []
-    if (
-        binbou_before_contact >= 0
-        and final_binbou_pos >= 0
-        and final_binbou_pos != binbou_before_contact
-    ):
-        binbou_reset_path_indices = build_path(binbou_before_contact, final_binbou_pos)
 
     did_win = final_pos >= GOAL_INDEX
     st.session_state.animation_event = {
@@ -686,62 +801,44 @@ def move_forward():
         "binbou_pos": final_binbou_pos,
         "binbou_start_pos": old_binbou_pos,
         "binbou_path_indices": binbou_path_indices,
-        "binbou_reset_path_indices": binbou_reset_path_indices,
+        "binbou_reset_path_indices": [],
         "path_indices": path_indices,
         "dice": dice,
         "win": did_win,
     }
 
     add_event_log(f"📍 {landing_station}역 도착 (주사위 {dice})")
-
     base_msg = (
         f"🎲 주사위 **{dice}** → **{landing_station}**역 도착!\n"
         f"({landing_pos + 1}/{len(STATIONS)}역 · 점수: {st.session_state.score})"
     )
     if ev_msg:
         base_msg += f"\n\n{ev_msg}"
-    if contact_msg and (not ev_msg or contact_msg not in ev_msg):
-        base_msg += f"\n\n{contact_msg}"
     if final_pos != landing_pos:
         base_msg += f"\n\n📌 현재 위치: **{final_station}**역"
 
-    # 승리 판정은 칸 이벤트와 먹보유령 접촉 처리가 모두 끝난 뒤 수행합니다.
-    if did_win:
-        st.session_state.play_sound = "win"
-        st.session_state.game_phase = "game_over"
-        st.session_state.winner = True
-        st.session_state.current_quiz = None
-        st.session_state.quiz_queue = []
-        st.session_state.last_message = (
-            f"🎉 {st.session_state.player_name}님이 {GOAL_STATION}역에 도착했습니다!\n"
-            f"총 {st.session_state.turns}턴 · 최종 점수: {st.session_state.score}점\n"
-            f"목적지 도달: {st.session_state.dest_reached}회"
+    # 유령에게 잡혔다면 승리·퀴즈보다 먼저 미니게임을 해결합니다.
+    if touching_ghost:
+        begin_ghost_minigame(
+            ghost_penalty,
+            {
+                "kind": "forward",
+                "base_msg": base_msg,
+                "double_quiz": double_quiz,
+                "did_win": did_win,
+            },
         )
         return
 
-    if st.session_state.binbou_effect is None:
+    if st.session_state.play_sound is None:
         st.session_state.play_sound = "dice"
-
-    if double_quiz:
-        st.session_state.quiz_queue = [get_random_quiz(), get_random_quiz()]
-        st.session_state.current_quiz = st.session_state.quiz_queue.pop(0)
-        st.session_state.game_phase = "answering_quiz"
-        base_msg += "\n\n📝 퀴즈 2문제 도전!"
-    else:
-        st.session_state.quiz_queue = []
-        st.session_state.current_quiz = get_random_quiz()
-        st.session_state.game_phase = "answering_quiz"
-        base_msg += "\n\n📝 사이드바에서 퀴즈를 풀어 보세요!"
-
-    st.session_state.last_message = base_msg
-    st.session_state.quiz_key += 1
+    continue_after_forward(base_msg, double_quiz, did_win)
 
 
 def move_backward():
     if st.session_state.game_phase != "waiting_penalty_roll":
         return
 
-    # 오답으로 중단된 연속 퀴즈와 추가 주사위는 다음 턴으로 넘기지 않습니다.
     st.session_state.quiz_queue = []
     st.session_state.extra_roll = False
 
@@ -757,6 +854,7 @@ def move_backward():
         reset_binbou_after_catch()
     old_binbou_pos = st.session_state.binbou_pos
 
+    st.session_state.play_sound = None
     st.session_state.binbou_effect = None
     dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
@@ -766,9 +864,8 @@ def move_backward():
     st.session_state.correct_streak = 0
 
     move_binbou(dice)
+    touching_ghost = sync_binbou_attachment(log_change=False)
     binbou_before_contact = st.session_state.binbou_pos
-    contact_msg = resolve_binbou_contact(False)
-    final_binbou_pos = st.session_state.binbou_pos
 
     binbou_path_indices = []
     if old_binbou_pos >= 0 and binbou_before_contact >= 0:
@@ -776,34 +873,29 @@ def move_backward():
     elif old_binbou_pos < 0 and binbou_before_contact >= 0:
         binbou_path_indices = [binbou_before_contact]
 
-    binbou_reset_path_indices = []
-    if (
-        binbou_before_contact >= 0
-        and final_binbou_pos >= 0
-        and final_binbou_pos != binbou_before_contact
-    ):
-        binbou_reset_path_indices = build_path(binbou_before_contact, final_binbou_pos)
-
     st.session_state.animation_event = {
         "position": new_pos,
-        "binbou_pos": final_binbou_pos,
+        "binbou_pos": st.session_state.binbou_pos,
         "binbou_start_pos": old_binbou_pos,
         "binbou_path_indices": binbou_path_indices,
-        "binbou_reset_path_indices": binbou_reset_path_indices,
+        "binbou_reset_path_indices": [],
         "path_indices": build_path(old_pos, new_pos),
         "dice": dice,
         "win": False,
     }
-    if contact_msg is None:
-        st.session_state.play_sound = "wrong"
     add_event_log(f"😢 뒤로 -{dice}칸 → {STATIONS[new_pos]}역")
+    base_msg = f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!"
+
+    if touching_ghost:
+        begin_ghost_minigame(
+            10,
+            {"kind": "backward", "base_msg": base_msg, "did_win": False},
+        )
+        return
+
+    st.session_state.play_sound = "wrong"
     st.session_state.game_phase = "ready_to_roll"
-    st.session_state.last_message = (
-        f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!"
-    )
-    if contact_msg:
-        st.session_state.last_message += f"\n\n{contact_msg}"
-    st.session_state.last_message += "\n\n다시 주사위를 굴려 보세요."
+    st.session_state.last_message = base_msg + "\n\n다시 주사위를 굴려 보세요."
 
 
 def submit_answer(answer):
@@ -820,11 +912,19 @@ def submit_answer(answer):
             st.session_state.score_x2 = False
         streak    = st.session_state.correct_streak
         bonus_msg = ""
+        st.session_state.celebration_event = None
         if streak >= 3:
             st.session_state.score += 5
             bonus_msg = f" 🔥 연속 {streak}정답 보너스 +5점!"
+            st.session_state.celebration_event = {
+                "id": random.randint(100000, 999999),
+                "streak": streak,
+                "message": f"🔥 {streak}연속 정답! 대단해요!",
+            }
+            st.session_state.play_sound = "streak"
+        else:
+            st.session_state.play_sound = "correct"
         st.session_state.current_quiz = None
-        st.session_state.play_sound   = "correct"
         add_event_log(f"✅ 정답! +{gained}점{bonus_msg}")
 
         if st.session_state.quiz_queue:
@@ -841,6 +941,7 @@ def submit_answer(answer):
         st.session_state.quiz_key += 1
     else:
         st.session_state.correct_streak = 0
+        st.session_state.celebration_event = None
         st.session_state.play_sound = "wrong"
         st.session_state.game_phase = "waiting_penalty_roll"
         st.session_state.last_message = (
@@ -868,6 +969,8 @@ def render_board(map_bytes, is_jpg):
         "binbouEffect":    st.session_state.get("binbou_effect"),
         "goal_index":      GOAL_INDEX,
         "playerName":      st.session_state.player_name,
+        "trainKey":        st.session_state.get("selected_train", "KTX"),
+        "train":           TRAIN_TYPES.get(st.session_state.get("selected_train", "KTX"), TRAIN_TYPES["KTX"]),
         "destination":     st.session_state.destination,
         "lastDice":        st.session_state.last_dice_value,
         "phase":           st.session_state.game_phase,
@@ -881,6 +984,8 @@ def render_board(map_bytes, is_jpg):
         "playSound":       st.session_state.get("play_sound"),
         "event":           st.session_state.animation_event,
         "eventLog":        st.session_state.event_log,
+        "treasureEffect":  st.session_state.get("treasure_effect"),
+        "celebrationEffect": st.session_state.get("celebration_event"),
     }
     pj = json.dumps(payload, ensure_ascii=False)
 
@@ -896,7 +1001,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #board-container{{position:relative;width:100%;aspect-ratio:{ORIGINAL_WIDTH}/{ORIGINAL_HEIGHT};border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
 .token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
-#token-player{{background:radial-gradient(circle at 35% 35%,#7fff00,#2ecc71);box-shadow:0 0 14px 4px rgba(46,204,113,.9);animation:playerPulse 1.4s ease-in-out infinite}}
+#token-player{{background:radial-gradient(circle at 35% 35%,#8fd3ff,#2f80ed);box-shadow:0 0 14px 4px rgba(47,128,237,.9);animation:playerPulse 1.4s ease-in-out infinite}}
 #token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
 @keyframes binbouPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(255,0,100,.8)}}50%{{box-shadow:0 0 24px 10px rgba(255,0,100,.3)}}}}
@@ -906,6 +1011,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 .sdot-red{{background:rgba(231,76,60,.6);box-shadow:0 0 7px rgba(231,76,60,.8)}}
 .sdot-star{{background:rgba(241,196,15,.7);box-shadow:0 0 9px rgba(241,196,15,.9);width:14px;height:14px;animation:starGlow 1.8s ease-in-out infinite}}
 .sdot-trap{{background:rgba(142,68,173,.7);box-shadow:0 0 7px rgba(142,68,173,.9)}}
+.sdot-treasure{{background:#ff9f1c;box-shadow:0 0 10px 3px rgba(255,159,28,.75);width:15px;height:15px;animation:treasureDot 1.2s ease-in-out infinite}}
+@keyframes treasureDot{{0%,100%{{transform:translate(-50%,-50%) scale(1) rotate(0)}}50%{{transform:translate(-50%,-50%) scale(1.35) rotate(12deg)}}}}
 .sdot-goal{{background:#00ff88;box-shadow:0 0 14px 5px rgba(0,255,136,.8);width:18px;height:18px;animation:goalGlow 1s ease-in-out infinite}}
 .sdot-active{{outline:3px solid #fff;outline-offset:2px}}
 @keyframes starGlow{{0%,100%{{transform:translate(-50%,-50%) scale(1)}}50%{{transform:translate(-50%,-50%) scale(1.5)}}}}
@@ -929,6 +1036,19 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #ghost-overlay.show{{display:flex;animation:ghostFlash .55s ease}}
 #ghost-emoji{{font-size:6.5em;animation:ghostCatch .65s ease-out}}
 #ghost-txt{{color:#ff8cff;font-size:1.55em;font-weight:900;text-shadow:0 0 16px rgba(255,70,255,.9)}}
+#treasure-overlay{{display:none;position:absolute;inset:0;background:rgba(22,8,0,.74);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:47;border-radius:14px;text-align:center;padding:20px}}
+#treasure-overlay.show{{display:flex;animation:treasureFlash .45s ease}}
+#treasure-emoji{{font-size:7em;animation:treasureOpen .8s cubic-bezier(.2,.8,.2,1)}}
+#treasure-txt{{color:#ffd166;font-size:1.45em;font-weight:900;text-shadow:0 0 16px rgba(255,190,50,.85);max-width:80%}}
+@keyframes treasureOpen{{0%{{transform:scale(.3) rotate(-15deg);opacity:.2}}45%{{transform:scale(1.25) rotate(10deg)}}75%{{transform:scale(.92) rotate(-4deg)}}100%{{transform:scale(1);opacity:1}}}}
+@keyframes treasureFlash{{0%{{background:rgba(255,205,60,.12)}}100%{{background:rgba(22,8,0,.74)}}}}
+#streak-overlay{{display:none;position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;z-index:49;pointer-events:none;text-align:center;background:radial-gradient(circle,rgba(255,217,61,.28),rgba(20,0,50,.45) 60%,rgba(20,0,50,.15))}}
+#streak-overlay.show{{display:flex;animation:streakFlash 1.8s ease both}}
+#streak-main{{font-size:2.4em;font-weight:900;color:#fff3a3;text-shadow:0 0 12px #ff8c00,0 0 28px #ff3d00;animation:streakPop .7s cubic-bezier(.2,1.5,.4,1)}}
+#streak-stars{{font-size:2.2em;letter-spacing:12px;animation:starSpin 1.2s linear infinite}}
+@keyframes streakPop{{0%{{transform:scale(.2) rotate(-12deg);opacity:0}}70%{{transform:scale(1.2) rotate(4deg)}}100%{{transform:scale(1);opacity:1}}}}
+@keyframes streakFlash{{0%{{opacity:0}}15%{{opacity:1}}80%{{opacity:1}}100%{{opacity:0}}}}
+@keyframes starSpin{{0%{{transform:rotate(-5deg) scale(.9)}}50%{{transform:rotate(5deg) scale(1.15)}}100%{{transform:rotate(-5deg) scale(.9)}}}}
 @keyframes ghostFlash{{0%{{background:rgba(255,0,100,.15)}}40%{{background:rgba(60,0,90,.92)}}100%{{background:rgba(30,0,45,.78)}}}}
 @keyframes ghostCatch{{0%{{transform:scale(.2) rotate(-20deg);opacity:0}}60%{{transform:scale(1.35) rotate(8deg)}}100%{{transform:scale(1);opacity:1}}}}
 #wrong-emoji{{font-size:6em;animation:wrongBounce .5s ease-out}}
@@ -951,7 +1071,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   <div id="board-col">
     <div id="board-container">
       <img id="board-img" src="" alt="노선도">
-      <div id="token-player" class="token">🚃</div>
+      <div id="token-player" class="token">🚄</div>
       <div id="token-binbou" class="token" style="display:none">👿</div>
       <div id="station-label" class="slabel" style="display:none"></div>
       <div id="dest-banner">🎯 목적지: <span id="dest-name">-</span></div>
@@ -965,9 +1085,17 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
         <div id="wrong-emoji">😢</div>
         <div id="wrong-txt">아쉬워요...</div>
       </div>
+      <div id="treasure-overlay">
+        <div id="treasure-emoji">🎁</div>
+        <div id="treasure-txt">보물상자 발견!</div>
+      </div>
       <div id="ghost-overlay">
         <div id="ghost-emoji">👿</div>
         <div id="ghost-txt">먹보유령에게 붙잡혔습니다!</div>
+      </div>
+      <div id="streak-overlay">
+        <div id="streak-stars">✨ ⭐ ✨</div>
+        <div id="streak-main">연속 정답!</div>
       </div>
       <div id="win-overlay">
         <div class="win-txt">🎉 건대입구 도착! 🎉</div>
@@ -982,6 +1110,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="stat-row"><span>턴</span><span class="stat-val" id="s-turns">0</span></div>
       <div class="stat-row"><span>스트릭</span><span class="stat-val" id="s-streak">0</span></div>
       <div class="stat-row"><span>목적지</span><span class="stat-val" id="s-dest">0회</span></div>
+      <div class="stat-row"><span>열차</span><span class="stat-val" id="s-train">KTX</span></div>
     </div>
     <div class="panel">
       <div class="panel-title">👿 먹보유령 거리</div>
@@ -1000,6 +1129,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="legend-row"><div class="legend-dot" style="background:#e74c3c"></div><span>빨간칸 (패널티)</span></div>
       <div class="legend-row"><div class="legend-dot" style="background:#f1c40f"></div><span>별칸 (목적지)</span></div>
       <div class="legend-row"><div class="legend-dot" style="background:#8e44ad"></div><span>함정칸</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ff9f1c"></div><span>보물상자칸</span></div>
       <div class="legend-row"><div class="legend-dot" style="background:#00ff88"></div><span>도착역</span></div>
     </div>
   </div>
@@ -1023,12 +1153,23 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const wrongOverlay=document.getElementById('wrong-overlay');
   const ghostOverlay=document.getElementById('ghost-overlay');
   const ghostTxt=document.getElementById('ghost-txt');
+  const treasureOverlay=document.getElementById('treasure-overlay');
+  const treasureTxt=document.getElementById('treasure-txt');
+  const streakOverlay=document.getElementById('streak-overlay');
+  const streakMain=document.getElementById('streak-main');
 
   document.getElementById('s-score').textContent=d.score||0;
   document.getElementById('s-turns').textContent=d.turns||0;
   document.getElementById('s-streak').textContent=d.streak||0;
   document.getElementById('s-dest').textContent=(d.destReached||0)+'회';
+  document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX';
   document.getElementById('dest-name').textContent=d.destination||'-';
+  if(d.train){{
+    tokenPlayer.textContent=d.train.emoji||'🚄';
+    tokenPlayer.style.background='radial-gradient(circle at 35% 35%,#ffffff,'+(d.train.color||'#2f80ed')+')';
+    tokenPlayer.style.boxShadow='0 0 14px 4px '+(d.train.glow||'rgba(47,128,237,.85)');
+    tokenPlayer.title=(d.train.name||'열차')+' · '+(d.playerName||'플레이어');
+  }}
   const pct=d.stations.length>1?(d.position/(d.stations.length-1)*100).toFixed(1):0;
   pbar.style.width=pct+'%';
 
@@ -1164,6 +1305,19 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   }}
 
   function runWrongAnim(){{wrongOverlay.classList.add('show');setTimeout(()=>wrongOverlay.classList.remove('show'),1800);}}
+  function runTreasureAnim(onDone){{
+    const effect=d.treasureEffect||{{}};
+    treasureTxt.textContent=effect.message||'반짝이는 보물을 발견했어요!';
+    treasureOverlay.classList.add('show');
+    setTimeout(()=>{{treasureOverlay.classList.remove('show');onDone&&onDone();}},1900);
+  }}
+  function runStreakCelebration(){{
+    const effect=d.celebrationEffect||{{}};
+    streakMain.textContent=effect.message||'🔥 연속 정답! 대단해요!';
+    streakOverlay.classList.add('show');
+    runConfetti();
+    setTimeout(()=>streakOverlay.classList.remove('show'),1850);
+  }}
   function runGhostAnim(onDone){{
     const effect=d.binbouEffect||{{}};
     ghostTxt.textContent=effect.message||'먹보유령 효과 발생!';
@@ -1222,7 +1376,6 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     else afterChase();
   }}
 
-  if(d.playSound==='correct')runConfetti();
   if(d.playSound==='wrong')runWrongAnim();
 
   function initBoard(){{
@@ -1239,31 +1392,40 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       tokenBinbou.style.display='none';
     }}
 
+    const finishBoardEffects=()=>{{
+      if(d.binbou_pos>=0){{
+        tokenBinbou.style.display='flex';
+        const finalGhostPt=d.points[d.stations[d.binbou_pos]];
+        if(finalGhostPt)placeTokenAt(tokenBinbou,finalGhostPt.x,finalGhostPt.y);
+      }}
+      showWinOverlay();
+    }};
+    const runAfterMove=()=>{{
+      const afterTreasure=()=>runGhostSequence(ev,finishBoardEffects);
+      if(d.treasureEffect)runTreasureAnim(afterTreasure);else afterTreasure();
+    }};
+
     if(hasMove&&ev.dice){{
       const startPt=d.points[d.stations[ev.path_indices[0]]];
       if(startPt)placeTokenAt(tokenPlayer,startPt.x,startPt.y);
-      runDiceAnim(ev.dice,()=>{{
-        animateToken(ev.path_indices,()=>{{
-          runGhostSequence(ev,()=>{{
-            if(d.binbou_pos>=0){{
-              tokenBinbou.style.display='flex';
-              const finalGhostPt=d.points[d.stations[d.binbou_pos]];
-              if(finalGhostPt)placeTokenAt(tokenBinbou,finalGhostPt.x,finalGhostPt.y);
-            }}
-            showWinOverlay();
-          }});
-        }});
-      }});
+      runDiceAnim(ev.dice,()=>{{animateToken(ev.path_indices,runAfterMove);}});
     }}else{{
       const pt=d.points[d.stations[d.position]];
       if(pt){{placeTokenAt(tokenPlayer,pt.x,pt.y);label.textContent=d.stations[d.position];label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
-      if(d.binbou_pos>=0){{
-        tokenBinbou.style.display='flex';
-        const bpt=d.points[d.stations[d.binbou_pos]];
-        if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+      const hasGhostSequence=ev&&(((ev.binbou_path_indices||[]).length>0)||((ev.binbou_reset_path_indices||[]).length>0));
+      if(hasGhostSequence){{
+        runGhostSequence(ev,finishBoardEffects);
+      }}else{{
+        if(d.binbou_pos>=0){{
+          tokenBinbou.style.display='flex';
+          const bpt=d.points[d.stations[d.binbou_pos]];
+          if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+        }}
+        if(d.binbouEffect)runGhostAnim(showWinOverlay);else showWinOverlay();
       }}
-      if(d.binbouEffect)runGhostAnim(showWinOverlay);else showWinOverlay();
+      if(d.treasureEffect)runTreasureAnim();
     }}
+    if(d.celebrationEffect)runStreakCelebration();
     const logEl=document.getElementById('event-log');
     (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
     if(d.soundEnabled&&d.playSound){{
@@ -1272,8 +1434,11 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
         function beep(f,dur,type='sine',vol=0.25){{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type=type;o.frequency.value=f;g.gain.setValueAtTime(vol,actx.currentTime);g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+dur);o.start();o.stop(actx.currentTime+dur);}}
         if(d.playSound==='dice'){{beep(440,.1);setTimeout(()=>beep(660,.1),100);}}
         if(d.playSound==='correct'){{beep(523,.1);setTimeout(()=>beep(659,.1),100);setTimeout(()=>beep(784,.25),200);}}
+        if(d.playSound==='streak'){{[523,659,784,988].forEach((f,i)=>setTimeout(()=>beep(f,.16,'sine',.22),i*90));}}
         if(d.playSound==='wrong'){{beep(180,.35,'sawtooth',.2);}}
         if(d.playSound==='ghost'){{beep(150,.18,'sawtooth',.25);setTimeout(()=>beep(95,.45,'square',.2),140);}}
+        if(d.playSound==='escape'){{[392,523,659,784].forEach((f,i)=>setTimeout(()=>beep(f,.14,'sine',.2),i*80));}}
+        if(d.playSound==='treasure'){{[659,784,988].forEach((f,i)=>setTimeout(()=>beep(f,.14,'triangle',.2),i*100));}}
         if(d.playSound==='win'){{[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.3),i*150));}}
       }}catch(e){{}}
     }}
@@ -1287,9 +1452,11 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 </script>
 </body></html>"""
 
-    st.session_state.play_sound      = None
-    st.session_state.animation_event = None
-    st.session_state.binbou_effect   = None
+    st.session_state.play_sound        = None
+    st.session_state.animation_event   = None
+    st.session_state.binbou_effect     = None
+    st.session_state.treasure_effect   = None
+    st.session_state.celebration_event = None
     components.html(html, height=820, scrolling=False)
 
 
@@ -1305,6 +1472,21 @@ with st.sidebar:
         value=st.session_state.get("player_name", "플레이어"),
         key="name_input"
     )
+
+    st.subheader("🚄 내 열차 선택")
+    train_keys = list(TRAIN_TYPES.keys())
+    if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
+        st.session_state.train_selector = st.session_state.get("selected_train", "KTX")
+    current_phase_for_train = st.session_state.get("game_phase", "start")
+    chosen_train = st.radio(
+        "함께 달릴 열차를 골라 주세요!",
+        train_keys,
+        key="train_selector",
+        horizontal=True,
+        format_func=lambda key: f"{TRAIN_TYPES[key]['emoji']} {key}",
+        disabled=current_phase_for_train not in ("start", "game_over"),
+    )
+    st.session_state.selected_train = chosen_train
 
     st.markdown("---")
     st.subheader("📚 퀴즈 카테고리")
@@ -1392,6 +1574,24 @@ with st.sidebar:
         if st.button("🎲 주사위 굴리기!", use_container_width=True, type="primary"):
             move_forward(); st.rerun()
 
+    elif phase == "ghost_minigame":
+        game = st.session_state.get("ghost_game")
+        st.subheader("👿 먹보유령 탈출 미니게임")
+        st.warning("🚪 세 문 중 하나를 골라 주세요! 두 문은 안전하고, 한 문에만 먹보유령이 숨어 있어요.")
+        if game:
+            door_cols = st.columns(3)
+            for door_idx, col in enumerate(door_cols):
+                with col:
+                    if st.button(
+                        f"🚪 {door_idx + 1}번 문",
+                        key=f"ghost_door_{game['id']}_{door_idx}",
+                        use_container_width=True,
+                        type="primary",
+                    ):
+                        resolve_ghost_minigame(door_idx)
+                        st.rerun()
+        st.caption("성공하면 감점 없이 탈출하고 먹보유령이 8칸 뒤로 물러납니다!")
+
     elif phase == "waiting_penalty_roll":
         st.subheader("😱 뒤로 가기 주사위")
         if "skip_penalty" in st.session_state.hand_items:
@@ -1434,7 +1634,9 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 🎯 목적지 카드 달성 시 +50점
-- 👿 먹보유령에게 잡히면 감점 후 유령은 6칸 뒤에서 다시 추격
+- 👿 먹보유령에게 잡히면 3문 탈출 미니게임 도전
+- 🎁 주황색 보물상자 칸에서 특별 보상 획득
+- 🔥 3연속 이상 정답이면 축하 특수 효과 등장
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
@@ -1451,7 +1653,8 @@ with st.sidebar:
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
         st.caption("🔴 **빨간 칸** — 패널티 (후퇴·점수 감소·먹보유령)")
         st.caption("⭐ **별 칸** — 목적지 카드 (도달 시 +50점)")
-        st.caption("💜 **함정 칸** — 먹보유령 소환! 잡힌 뒤에는 6칸 뒤에서 재추격")
+        st.caption("💜 **함정 칸** — 먹보유령 소환! 탈출 미니게임에 도전")
+        st.caption("🟠 **보물상자 칸** — 점수·아이템·주사위 보너스 등 특별 보상")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
 
@@ -1470,7 +1673,7 @@ if phase == "game_over":
     st.success(msg)
 elif phase == "answering_quiz":
     st.warning(msg)
-elif phase == "waiting_penalty_roll":
+elif phase in ("waiting_penalty_roll", "ghost_minigame"):
     st.error(msg)
 else:
     st.info(msg)
