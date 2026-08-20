@@ -185,19 +185,22 @@ TRAIN_TYPES = {
 
 
 def render_train_preview_gallery(selected_train: str) -> str:
+    # Streamlit의 Markdown 파서가 들여쓰기된 HTML을 코드 블록으로 해석하지 않도록
+    # 미리보기 HTML을 줄바꿈/선행 공백 없는 한 줄 문자열로 만듭니다.
     cards = []
     for key, train in TRAIN_TYPES.items():
         border = train["color"] if key == selected_train else "rgba(255,255,255,.15)"
         shadow = train["glow"] if key == selected_train else "rgba(0,0,0,.12)"
-        cards.append(
-            f"""
-            <div style='flex:1;min-width:0;background:rgba(255,255,255,.05);border:2px solid {border};
-                        border-radius:14px;padding:8px 6px;text-align:center;box-shadow:0 0 16px {shadow};'>
-                <img src='{train['image']}' alt='{key}' style='width:100%;max-height:56px;object-fit:contain;display:block;margin:0 auto 4px auto;'>
-                <div style='font-weight:800;font-size:13px;color:white;letter-spacing:.2px'>{key}</div>
-            </div>
-            """
+        card = (
+            f"<div style='flex:1;min-width:0;background:rgba(255,255,255,.05);"
+            f"border:2px solid {border};border-radius:14px;padding:8px 6px;"
+            f"text-align:center;box-shadow:0 0 16px {shadow};'>"
+            f"<img src='{train['image']}' alt='{key}' "
+            f"style='width:100%;max-height:56px;object-fit:contain;display:block;margin:0 auto 4px auto;'>"
+            f"<div style='font-weight:800;font-size:13px;color:white;letter-spacing:.2px'>{key}</div>"
+            f"</div>"
         )
+        cards.append(card)
     return "<div style='display:flex;gap:8px;margin:6px 0 4px 0'>" + "".join(cards) + "</div>"
 
 SQUARE_TYPES = {
