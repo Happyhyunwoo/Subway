@@ -160,12 +160,12 @@ def build_train_svg(label: str, kind: str, body: str, stripe: str, nose: str, ou
 
 
 TRAIN_TYPES = {
-    "KTX": {
-        "name": "KTX",
+    "KTX 청룡": {
+        "name": "KTX 청룡",
         "emoji": "🚄",
-        "color": "#2f80ed",
-        "glow": "rgba(47,128,237,.85)",
-        "image": svg_data_uri(build_train_svg("KTX", "ktx", "#1565c0", "#1e88e5", "#7ec8ff", "#0d47a1")),
+        "color": "#1270d8",
+        "glow": "rgba(18,112,216,.85)",
+        "image": svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
     },
     "SRT": {
         "name": "SRT",
@@ -174,12 +174,12 @@ TRAIN_TYPES = {
         "glow": "rgba(142,68,173,.85)",
         "image": svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
     },
-    "신칸센": {
-        "name": "신칸센",
+    "무궁화호": {
+        "name": "무궁화호",
         "emoji": "🚆",
-        "color": "#e74c3c",
-        "glow": "rgba(231,76,60,.85)",
-        "image": svg_data_uri(build_train_svg("Shinkansen", "shinkansen", "#2b6cb0", "#1a4e80", "#f3f8ff", "#557a9b")),
+        "color": "#d35454",
+        "glow": "rgba(211,84,84,.85)",
+        "image": svg_data_uri(build_train_svg("무궁화", "shinkansen", "#c44747", "#f4d03f", "#fff6ec", "#8a3b3b")),
     },
 }
 
@@ -468,11 +468,14 @@ QUIZZES = [
 # ═══════════════════════════════════════════════════
 #  게임 상태 초기화
 # ═══════════════════════════════════════════════════
+def normalize_train_key(train_key: str) -> str:
+    legacy_map = {"KTX": "KTX 청룡", "신칸센": "무궁화호"}
+    normalized = legacy_map.get(train_key, train_key)
+    return normalized if normalized in TRAIN_TYPES else "KTX 청룡"
+
 def init_game(keep_name=True):
     old_name = st.session_state.get("player_name", "플레이어")
-    old_train = st.session_state.get("selected_train", "KTX")
-    if old_train not in TRAIN_TYPES:
-        old_train = "KTX"
+    old_train = normalize_train_key(st.session_state.get("selected_train", "KTX 청룡"))
     st.session_state.player_name       = old_name if keep_name else "플레이어"
     st.session_state.selected_train    = old_train
     st.session_state.position          = 0
@@ -513,10 +516,10 @@ if "position" not in st.session_state:
 
 def start_game():
     name = st.session_state.get("player_name", "플레이어")
-    train_key = st.session_state.get("selected_train", "KTX")
+    train_key = normalize_train_key(st.session_state.get("selected_train", "KTX 청룡"))
     init_game(keep_name=True)
     st.session_state.player_name   = name
-    st.session_state.selected_train = train_key if train_key in TRAIN_TYPES else "KTX"
+    st.session_state.selected_train = train_key
     train = TRAIN_TYPES[st.session_state.selected_train]
     st.session_state.game_phase   = "ready_to_roll"
     st.session_state.last_message = (
@@ -1176,8 +1179,8 @@ def render_board(map_bytes, is_jpg):
         "binbouEffect":    st.session_state.get("binbou_effect"),
         "goal_index":      GOAL_INDEX,
         "playerName":      st.session_state.player_name,
-        "trainKey":        st.session_state.get("selected_train", "KTX"),
-        "train":           TRAIN_TYPES.get(st.session_state.get("selected_train", "KTX"), TRAIN_TYPES["KTX"]),
+        "trainKey":        st.session_state.get("selected_train", "KTX 청룡"),
+        "train":           TRAIN_TYPES.get(st.session_state.get("selected_train", "KTX 청룡"), TRAIN_TYPES["KTX 청룡"]),
         "destination":     st.session_state.destination,
         "lastDice":        st.session_state.last_dice_value,
         "phase":           st.session_state.game_phase,
@@ -1335,7 +1338,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div class="stat-row"><span>턴</span><span class="stat-val" id="s-turns">0</span></div>
       <div class="stat-row"><span>스트릭</span><span class="stat-val" id="s-streak">0</span></div>
       <div class="stat-row"><span>목적지</span><span class="stat-val" id="s-dest">0회</span></div>
-      <div class="stat-row"><span>열차</span><span class="stat-val" id="s-train">KTX</span></div>
+      <div class="stat-row"><span>열차</span><span class="stat-val" id="s-train">KTX 청룡</span></div>
     </div>
     <div class="panel">
       <div class="panel-title">👿 먹보유령 거리</div>
@@ -1391,7 +1394,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('s-turns').textContent=d.turns||0;
   document.getElementById('s-streak').textContent=d.streak||0;
   document.getElementById('s-dest').textContent=(d.destReached||0)+'회';
-  document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX';
+  document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX 청룡';
   document.getElementById('dest-name').textContent=d.destination||'-';
   if(d.train){{
     if(playerImg){{
@@ -1401,7 +1404,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     tokenPlayer.style.borderColor=d.train.color||'#2f80ed';
     tokenPlayer.style.boxShadow='0 0 14px 4px '+(d.train.glow||'rgba(47,128,237,.85)');
     tokenPlayer.title=(d.train.name||'열차')+' · '+(d.playerName||'플레이어');
-    document.getElementById('s-train').innerHTML='<span class="train-badge-mini"><img src="'+(d.train.image||'')+'" alt="'+(d.train.name||'열차')+'"><span>'+(d.train.name||d.trainKey||'KTX')+'</span></span>';
+    document.getElementById('s-train').innerHTML='<span class="train-badge-mini"><img src="'+(d.train.image||'')+'" alt="'+(d.train.name||'열차')+'"><span>'+(d.train.name||d.trainKey||'KTX 청룡')+'</span></span>';
   }}
   const pct=d.stations.length>1?(d.position/(d.stations.length-1)*100).toFixed(1):0;
   pbar.style.width=pct+'%';
@@ -1804,7 +1807,7 @@ with st.sidebar:
     st.subheader("🚄 내 열차 선택")
     train_keys = list(TRAIN_TYPES.keys())
     if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
-        st.session_state.train_selector = st.session_state.get("selected_train", "KTX")
+        st.session_state.train_selector = normalize_train_key(st.session_state.get("selected_train", "KTX 청룡"))
     current_phase_for_train = st.session_state.get("game_phase", "start")
     st.markdown(render_train_preview_gallery(st.session_state.train_selector), unsafe_allow_html=True)
     chosen_train = st.radio(
@@ -1815,7 +1818,7 @@ with st.sidebar:
         format_func=lambda key: key,
         disabled=current_phase_for_train not in ("start", "game_over"),
     )
-    st.session_state.selected_train = chosen_train
+    st.session_state.selected_train = normalize_train_key(chosen_train)
 
     st.markdown("---")
     st.subheader("📚 퀴즈 카테고리")
