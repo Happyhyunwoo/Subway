@@ -393,6 +393,7 @@ def init_game(keep_name=True):
     st.session_state.ghost_game        = None
     st.session_state.treasure_effect   = None
     st.session_state.celebration_event = None
+    st.session_state.ladder_animation  = None
 
 
 if "position" not in st.session_state:
@@ -529,20 +530,90 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
     add_event_log(message)
 
 
+def generate_ladder_layout():
+    """4줄 사다리의 가로 연결선과 아래쪽 결과를 생성합니다.
+
+    각 가로선은 인접한 두 세로줄만 연결하며, 위에서 아래로 따라가면
+    시작 위치 4개가 서로 다른 끝점 4개에 일대일로 연결됩니다.
+    """
+    row_count = 11
+    rungs = []
+    last_left = None
+    for row in range(row_count):
+        candidates = [0, 1, 2]
+        if last_left is not None and len(candidates) > 1:
+            weighted = [c for c in candidates if c != last_left]
+            left = random.choice(weighted if random.random() < 0.72 else candidates)
+        else:
+            left = random.choice(candidates)
+        rungs.append({"row": row, "left": left})
+        last_left = left
+
+    bottom_outcomes = ["escape", "escape", "caught", "caught"]
+    random.shuffle(bottom_outcomes)
+    return rungs, bottom_outcomes
+
+
+def ladder_endpoint(start_index, rungs):
+    """선택한 시작 번호가 실제 사다리를 따라 도착하는 끝점 번호를 계산합니다."""
+    col = int(start_index)
+    for rung in sorted(rungs, key=lambda r: r.get("row", 0)):
+        left = int(rung.get("left", -1))
+        if col == left:
+            col += 1
+        elif col == left + 1:
+            col -= 1
+    return max(0, min(col, 3))
+
+
+def render_ladder_preview(game):
+    """선택 전에는 결과를 숨긴 실제 사다리 모양을 사이드바에 보여줍니다."""
+    if not game:
+        return
+    rungs = game.get("rungs", [])
+    data = json.dumps({"rungs": rungs}, ensure_ascii=False)
+    preview_html = f"""
+    <div style="font-family:'Noto Sans KR',sans-serif;background:#16072a;border:1px solid #6741a8;border-radius:12px;padding:8px 6px 5px;color:white">
+      <div style="text-align:center;font-size:12px;font-weight:700;margin-bottom:3px">위에서 하나를 고르고 사다리를 따라가요!</div>
+      <svg id="ladder-preview" viewBox="0 0 360 255" style="width:100%;height:225px;display:block"></svg>
+    </div>
+    <script>
+    (()=>{{
+      const d={data};
+      const svg=document.getElementById('ladder-preview');
+      const ns='http://www.w3.org/2000/svg';
+      const xs=[45,135,225,315], y0=32, y1=215;
+      const add=(tag,attrs,text)=>{{const e=document.createElementNS(ns,tag);Object.entries(attrs||{{}}).forEach(([k,v])=>e.setAttribute(k,v));if(text!=null)e.textContent=text;svg.appendChild(e);return e;}};
+      xs.forEach((x,i)=>{{
+        add('text',{{x,y:18,'text-anchor':'middle',fill:'#fff','font-size':'14','font-weight':'700'}},String(i+1));
+        add('line',{{x1:x,y1:y0,x2:x,y2:y1,stroke:'#e7d8ff','stroke-width':'5','stroke-linecap':'round'}});
+        add('circle',{{cx:x,cy:y1+17,r:12,fill:'#3c245f',stroke:'#9b75d6','stroke-width':'2'}});
+        add('text',{{x,y:y1+21,'text-anchor':'middle',fill:'#fff','font-size':'13','font-weight':'700'}},'?');
+      }});
+      (d.rungs||[]).forEach((r,idx)=>{{
+        const y=y0+((idx+1)/((d.rungs||[]).length+1))*(y1-y0);
+        const l=Math.max(0,Math.min(2,Number(r.left)||0));
+        add('line',{{x1:xs[l],y1:y,x2:xs[l+1],y2:y,stroke:'#ffd166','stroke-width':'5','stroke-linecap':'round'}});
+      }});
+    }})();
+    </script>
+    """
+    components.html(preview_html, height=250, scrolling=False)
+
+
 def begin_ghost_minigame(penalty, resume):
     """유령 접촉 시 즉시 감점하지 않고 4개 사다리 미니게임을 시작합니다."""
     penalty = max(0, int(penalty))
     st.session_state.binbou_pos = st.session_state.position
     st.session_state.binbou_attached = True
 
-    # 4개 사다리 중 정확히 2개는 탈출, 2개는 잡힘입니다.
-    # 결과 배열을 매번 섞기 때문에 각 사다리의 성공 확률은 1/2입니다.
-    ladder_outcomes = ["escape", "escape", "caught", "caught"]
-    random.shuffle(ladder_outcomes)
+    # 실제 사다리 구조를 먼저 만든 뒤, 아래쪽 결과 두 칸은 탈출 / 두 칸은 잡힘으로 정합니다.
+    rungs, bottom_outcomes = generate_ladder_layout()
 
     st.session_state.ghost_game = {
         "id": random.randint(100000, 999999),
-        "ladder_outcomes": ladder_outcomes,
+        "rungs": rungs,
+        "bottom_outcomes": bottom_outcomes,
         "penalty": penalty,
         "resume": resume,
     }
@@ -603,21 +674,23 @@ def resolve_ghost_minigame(choice_index):
     if not 0 <= choice_index < 4:
         return
 
-    # 이전 버전의 세션이 남아 있더라도 4개 사다리 규칙으로 안전하게 전환합니다.
-    ladder_outcomes = game.get("ladder_outcomes")
-    if not isinstance(ladder_outcomes, list) or len(ladder_outcomes) != 4:
-        ladder_outcomes = ["escape", "escape", "caught", "caught"]
-        random.shuffle(ladder_outcomes)
-        game["ladder_outcomes"] = ladder_outcomes
+    # 이전 버전 세션이 남아 있어도 실제 사다리 규칙으로 안전하게 전환합니다.
+    rungs = game.get("rungs")
+    bottom_outcomes = game.get("bottom_outcomes")
+    if not isinstance(rungs, list) or not rungs or not isinstance(bottom_outcomes, list) or len(bottom_outcomes) != 4:
+        rungs, bottom_outcomes = generate_ladder_layout()
+        game["rungs"] = rungs
+        game["bottom_outcomes"] = bottom_outcomes
 
     penalty = int(game.get("penalty", 10))
     resume = game.get("resume", {})
     ghost_start = st.session_state.position
-    success = ladder_outcomes[choice_index] == "escape"
+    end_index = ladder_endpoint(choice_index, rungs)
+    success = bottom_outcomes[end_index] == "escape"
 
     if success:
         result_msg = (
-            f"💨 {choice_index + 1}번 사다리 탈출 성공! 끝까지 내려가니 안전한 길이 나왔어요! "
+            f"💨 {choice_index + 1}번에서 출발해 {end_index + 1}번 끝점 도착! 탈출 성공! "
             "먹보유령이 8칸 뒤로 물러납니다."
         )
         show_binbou_effect(result_msg, 0, "escaped")
@@ -625,7 +698,7 @@ def resolve_ghost_minigame(choice_index):
         reset_binbou_after_catch(distance=8)
     else:
         result_msg = (
-            f"😵 {choice_index + 1}번 사다리 끝에서 먹보유령을 만났어요! 점수 -{penalty}점! "
+            f"😵 {choice_index + 1}번에서 출발해 {end_index + 1}번 끝점 도착! 먹보유령에게 잡혔어요! 점수 -{penalty}점! "
             "먹보유령은 6칸 뒤에서 다시 따라옵니다."
         )
         show_binbou_effect(result_msg, penalty, "caught")
@@ -643,6 +716,15 @@ def resolve_ghost_minigame(choice_index):
         "path_indices": [st.session_state.position],
         "dice": None,
         "win": did_win,
+    }
+    st.session_state.ladder_animation = {
+        "id": game.get("id", random.randint(100000, 999999)),
+        "rungs": rungs,
+        "selected": choice_index,
+        "end": end_index,
+        "bottom_outcomes": bottom_outcomes,
+        "success": success,
+        "message": result_msg,
     }
     st.session_state.ghost_game = None
 
@@ -1000,6 +1082,7 @@ def render_board(map_bytes, is_jpg):
         "eventLog":        st.session_state.event_log,
         "treasureEffect":  st.session_state.get("treasure_effect"),
         "celebrationEffect": st.session_state.get("celebration_event"),
+        "ladderAnimation": st.session_state.get("ladder_animation"),
     }
     pj = json.dumps(payload, ensure_ascii=False)
 
@@ -1046,6 +1129,13 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #wrong-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:45;border-radius:14px}}
 #wrong-overlay.show{{display:flex;animation:wrongShake .4s ease}}
 @keyframes wrongShake{{0%{{transform:translateX(0)}}15%{{transform:translateX(-10px)}}30%{{transform:translateX(10px)}}45%{{transform:translateX(-8px)}}60%{{transform:translateX(8px)}}75%{{transform:translateX(-4px)}}90%{{transform:translateX(4px)}}100%{{transform:translateX(0)}}}}
+#ladder-overlay{{display:none;position:absolute;inset:0;background:rgba(16,5,35,.94);align-items:center;justify-content:center;flex-direction:column;z-index:49;border-radius:14px;padding:16px}}
+#ladder-overlay.show{{display:flex;animation:ladderFade .28s ease}}
+#ladder-title{{color:#fff;font-size:1.35em;font-weight:900;margin-bottom:4px;text-align:center}}
+#ladder-sub{{color:#d8c8ef;font-size:.92em;margin-bottom:5px;text-align:center}}
+#ladder-svg{{width:min(92%,520px);height:auto;max-height:72%;overflow:visible}}
+#ladder-result{{min-height:34px;margin-top:5px;color:#ffd166;font-size:1.25em;font-weight:900;text-align:center}}
+@keyframes ladderFade{{from{{opacity:0}}to{{opacity:1}}}}
 #ghost-overlay{{display:none;position:absolute;inset:0;background:rgba(30,0,45,.78);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:48;border-radius:14px;text-align:center;padding:20px}}
 #ghost-overlay.show{{display:flex;animation:ghostFlash .55s ease}}
 #ghost-emoji{{font-size:6.5em;animation:ghostCatch .65s ease-out}}
@@ -1102,6 +1192,12 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       <div id="treasure-overlay">
         <div id="treasure-emoji">🎁</div>
         <div id="treasure-txt">보물상자 발견!</div>
+      </div>
+      <div id="ladder-overlay">
+        <div id="ladder-title">🪜 먹보유령 사다리 게임</div>
+        <div id="ladder-sub">선택한 출발점에서 실제 사다리를 따라 내려갑니다!</div>
+        <svg id="ladder-svg" viewBox="0 0 440 430" aria-label="먹보유령 사다리 게임 애니메이션"></svg>
+        <div id="ladder-result"></div>
       </div>
       <div id="ghost-overlay">
         <div id="ghost-emoji">👿</div>
@@ -1165,6 +1261,9 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const ctx2d=diceCanvas.getContext('2d');
   const confettiCanvas=document.getElementById('confetti-canvas');
   const wrongOverlay=document.getElementById('wrong-overlay');
+  const ladderOverlay=document.getElementById('ladder-overlay');
+  const ladderSvg=document.getElementById('ladder-svg');
+  const ladderResult=document.getElementById('ladder-result');
   const ghostOverlay=document.getElementById('ghost-overlay');
   const ghostTxt=document.getElementById('ghost-txt');
   const treasureOverlay=document.getElementById('treasure-overlay');
@@ -1332,6 +1431,97 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     runConfetti();
     setTimeout(()=>streakOverlay.classList.remove('show'),1850);
   }}
+  function runLadderAnimation(onDone){{
+    const effect=d.ladderAnimation;
+    if(!effect||!ladderSvg){{onDone&&onDone();return;}}
+    const ns='http://www.w3.org/2000/svg';
+    const xs=[55,165,275,385], yTop=55, yBottom=350;
+    const rungs=(effect.rungs||[]).slice().sort((a,b)=>(a.row||0)-(b.row||0));
+    const add=(tag,attrs,text)=>{{const e=document.createElementNS(ns,tag);Object.entries(attrs||{{}}).forEach(([k,v])=>e.setAttribute(k,String(v)));if(text!=null)e.textContent=text;ladderSvg.appendChild(e);return e;}};
+    ladderSvg.innerHTML='';
+    ladderResult.textContent='';
+    ladderOverlay.classList.add('show');
+
+    add('rect',{{x:16,y:8,width:408,height:405,rx:20,fill:'rgba(255,255,255,.035)',stroke:'rgba(255,255,255,.16)','stroke-width':2}});
+    xs.forEach((x,i)=>{{
+      add('circle',{{cx:x,cy:31,r:18,fill:i===Number(effect.selected)?'#ffd166':'#3a245b',stroke:i===Number(effect.selected)?'#fff1a8':'#8b68bf','stroke-width':3}});
+      add('text',{{x:x,y:36,'text-anchor':'middle',fill:i===Number(effect.selected)?'#2b143b':'#fff','font-size':15,'font-weight':900}},String(i+1));
+      add('line',{{x1:x,y1:yTop,x2:x,y2:yBottom,stroke:'#f0e7ff','stroke-width':6,'stroke-linecap':'round'}});
+    }});
+
+    const rungYs=[];
+    rungs.forEach((r,idx)=>{{
+      const y=yTop+((idx+1)/(rungs.length+1))*(yBottom-yTop);
+      rungYs.push(y);
+      const l=Math.max(0,Math.min(2,Number(r.left)||0));
+      add('line',{{x1:xs[l],y1:y,x2:xs[l+1],y2:y,stroke:'#ffd166','stroke-width':7,'stroke-linecap':'round'}});
+    }});
+
+    const bottomGroups=[];
+    xs.forEach((x,i)=>{{
+      const g=add('g',{{opacity:.18}});
+      const circle=document.createElementNS(ns,'circle');
+      circle.setAttribute('cx',x);circle.setAttribute('cy',383);circle.setAttribute('r',25);circle.setAttribute('fill','#4a3467');circle.setAttribute('stroke','#a58acb');circle.setAttribute('stroke-width','2');g.appendChild(circle);
+      const txt=document.createElementNS(ns,'text');
+      txt.setAttribute('x',x);txt.setAttribute('y',389);txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#fff');txt.setAttribute('font-size','20');txt.textContent='?';g.appendChild(txt);
+      ladderSvg.appendChild(g);bottomGroups.push(g);
+    }});
+
+    let col=Math.max(0,Math.min(3,Number(effect.selected)||0));
+    const pts=[{{x:xs[col],y:yTop}}];
+    rungs.forEach((r,idx)=>{{
+      const y=rungYs[idx], left=Math.max(0,Math.min(2,Number(r.left)||0));
+      pts.push({{x:xs[col],y}});
+      if(col===left){{col+=1;pts.push({{x:xs[col],y}});}}
+      else if(col===left+1){{col-=1;pts.push({{x:xs[col],y}});}}
+    }});
+    pts.push({{x:xs[col],y:yBottom}});
+    pts.push({{x:xs[col],y:374}});
+
+    const trace=add('polyline',{{points:'','fill':'none',stroke:'#58e6ff','stroke-width':8,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.92}});
+    const marker=add('circle',{{cx:pts[0].x,cy:pts[0].y,r:12,fill:'#58e6ff',stroke:'#fff','stroke-width':4}});
+    const markerTxt=add('text',{{x:pts[0].x,y:pts[0].y+5,'text-anchor':'middle',fill:'#14213d','font-size':12,'font-weight':900}},'▶');
+    const visited=[pts[0]];
+    const updateTrace=()=>trace.setAttribute('points',visited.map(p=>p.x+','+p.y).join(' '));
+    updateTrace();
+
+    let seg=0;
+    function animateSegment(){{
+      if(seg>=pts.length-1){{
+        const outcomes=effect.bottom_outcomes||[];
+        bottomGroups.forEach((g,i)=>{{
+          g.setAttribute('opacity','1');
+          const c=g.querySelector('circle'),t=g.querySelector('text');
+          const escaped=outcomes[i]==='escape';
+          c.setAttribute('fill',escaped?'#1f8f69':'#8a3155');
+          c.setAttribute('stroke',escaped?'#7dffd4':'#ff92b6');
+          t.textContent=escaped?'💨':'👿';
+        }});
+        const ok=!!effect.success;
+        ladderResult.textContent=ok?'🎉 탈출 성공! 먹보유령을 따돌렸어요!':'😵 잡혔어요! 먹보유령이 기다리고 있었어요!';
+        ladderResult.style.color=ok?'#83ffd3':'#ff9fbd';
+        if(ok)runConfetti();
+        setTimeout(()=>{{ladderOverlay.classList.remove('show');onDone&&onDone();}},1500);
+        return;
+      }}
+      const a=pts[seg],b=pts[seg+1];
+      const dist=Math.hypot(b.x-a.x,b.y-a.y);
+      const dur=Math.max(120,Math.min(430,dist*3.0));
+      const t0=performance.now();
+      function frame(now){{
+        const t=Math.min((now-t0)/dur,1);
+        const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+        const x=a.x+(b.x-a.x)*e,y=a.y+(b.y-a.y)*e;
+        marker.setAttribute('cx',x);marker.setAttribute('cy',y);
+        markerTxt.setAttribute('x',x);markerTxt.setAttribute('y',y+5);
+        if(t<1)requestAnimationFrame(frame);
+        else{{visited.push(b);updateTrace();seg++;animateSegment();}}
+      }}
+      requestAnimationFrame(frame);
+    }}
+    setTimeout(animateSegment,350);
+  }}
+
   function runGhostAnim(onDone){{
     const effect=d.binbouEffect||{{}};
     ghostTxt.textContent=effect.message||'먹보유령 효과 발생!';
@@ -1427,16 +1617,19 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       const pt=d.points[d.stations[d.position]];
       if(pt){{placeTokenAt(tokenPlayer,pt.x,pt.y);label.textContent=d.stations[d.position];label.style.left=pt.x+'%';label.style.top=pt.y+'%';label.style.display='block';}}
       const hasGhostSequence=ev&&(((ev.binbou_path_indices||[]).length>0)||((ev.binbou_reset_path_indices||[]).length>0));
-      if(hasGhostSequence){{
-        runGhostSequence(ev,finishBoardEffects);
-      }}else{{
-        if(d.binbou_pos>=0){{
-          tokenBinbou.style.display='flex';
-          const bpt=d.points[d.stations[d.binbou_pos]];
-          if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+      const afterLadder=()=>{{
+        if(hasGhostSequence){{
+          runGhostSequence(ev,finishBoardEffects);
+        }}else{{
+          if(d.binbou_pos>=0){{
+            tokenBinbou.style.display='flex';
+            const bpt=d.points[d.stations[d.binbou_pos]];
+            if(bpt)placeTokenAt(tokenBinbou,bpt.x,bpt.y);
+          }}
+          if(d.binbouEffect)runGhostAnim(showWinOverlay);else showWinOverlay();
         }}
-        if(d.binbouEffect)runGhostAnim(showWinOverlay);else showWinOverlay();
-      }}
+      }};
+      if(d.ladderAnimation)runLadderAnimation(afterLadder);else afterLadder();
       if(d.treasureEffect)runTreasureAnim();
     }}
     if(d.celebrationEffect)runStreakCelebration();
@@ -1471,6 +1664,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     st.session_state.binbou_effect     = None
     st.session_state.treasure_effect   = None
     st.session_state.celebration_event = None
+    st.session_state.ladder_animation  = None
     components.html(html, height=820, scrolling=False)
 
 
@@ -1592,12 +1786,8 @@ with st.sidebar:
         game = st.session_state.get("ghost_game")
         st.subheader("👿 먹보유령 사다리 게임")
         st.warning("🪜 4개의 사다리 중 하나를 골라 주세요! 2개는 탈출, 2개는 먹보유령에게 잡힙니다.")
-        st.markdown(
-            "<div style='text-align:center;font-size:25px;letter-spacing:8px;margin:4px 0 8px'>"
-            "🪜 🪜 🪜 🪜</div>",
-            unsafe_allow_html=True,
-        )
         if game:
+            render_ladder_preview(game)
             ladder_cols = st.columns(4)
             for ladder_idx, col in enumerate(ladder_cols):
                 with col:
