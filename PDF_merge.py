@@ -2,6 +2,7 @@ import base64
 import json
 import random
 from pathlib import Path
+from urllib.parse import quote
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -83,11 +84,121 @@ STATION_POINTS = {
     for name, (x, y) in STATION_PIXELS.items()
 }
 
+def svg_data_uri(svg_markup: str) -> str:
+    return "data:image/svg+xml;utf8," + quote(svg_markup)
+
+
+def build_train_svg(label: str, kind: str, body: str, stripe: str, nose: str, outline: str) -> str:
+    if kind == "ktx":
+        svg = f"""
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 88'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1'>
+      <stop offset='0' stop-color='#ffffff'/>
+      <stop offset='1' stop-color='#eef5ff'/>
+    </linearGradient>
+  </defs>
+  <rect x='3' y='20' width='214' height='48' rx='22' fill='url(#bg)' stroke='{outline}' stroke-width='3'/>
+  <path d='M18 61 C34 42, 60 27, 101 24 L101 64 C58 64, 31 64, 18 61 Z' fill='{nose}' stroke='{outline}' stroke-width='2'/>
+  <rect x='86' y='30' width='94' height='16' rx='8' fill='{body}' opacity='0.95'/>
+  <rect x='111' y='50' width='73' height='6' rx='3' fill='{stripe}'/>
+  <rect x='102' y='47' width='12' height='10' rx='3' fill='{stripe}'/>
+  <rect x='64' y='39' width='28' height='10' rx='5' fill='#20364f' opacity='0.92'/>
+  <g fill='#d9ecff'>
+    <rect x='119' y='33' width='9' height='8' rx='2'/>
+    <rect x='131' y='33' width='9' height='8' rx='2'/>
+    <rect x='143' y='33' width='9' height='8' rx='2'/>
+    <rect x='155' y='33' width='9' height='8' rx='2'/>
+  </g>
+  <text x='171' y='65' font-size='18' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' fill='{body}'>{label}</text>
+</svg>"""
+    elif kind == "srt":
+        svg = f"""
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 88'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1'>
+      <stop offset='0' stop-color='#fff8fb'/>
+      <stop offset='1' stop-color='#f4ecff'/>
+    </linearGradient>
+  </defs>
+  <rect x='8' y='20' width='204' height='48' rx='22' fill='url(#bg)' stroke='{outline}' stroke-width='3'/>
+  <path d='M24 61 C38 47, 53 32, 93 26 L93 64 C54 64, 37 63, 24 61 Z' fill='{nose}' stroke='{outline}' stroke-width='2'/>
+  <rect x='88' y='28' width='102' height='18' rx='9' fill='{body}'/>
+  <rect x='98' y='50' width='88' height='7' rx='3.5' fill='{stripe}'/>
+  <path d='M55 39 C65 30, 77 28, 90 30 L90 48 C76 50, 64 50, 55 46 Z' fill='#2c2142' opacity='0.95'/>
+  <g fill='#f6ecff'>
+    <rect x='116' y='32' width='10' height='8' rx='2'/>
+    <rect x='129' y='32' width='10' height='8' rx='2'/>
+    <rect x='142' y='32' width='10' height='8' rx='2'/>
+    <rect x='155' y='32' width='10' height='8' rx='2'/>
+  </g>
+  <text x='170' y='65' font-size='18' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' fill='{body}'>{label}</text>
+</svg>"""
+    else:
+        svg = f"""
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 220 88'>
+  <defs>
+    <linearGradient id='bg' x1='0' x2='1'>
+      <stop offset='0' stop-color='#ffffff'/>
+      <stop offset='1' stop-color='#f2f9ff'/>
+    </linearGradient>
+  </defs>
+  <rect x='8' y='24' width='204' height='40' rx='20' fill='url(#bg)' stroke='{outline}' stroke-width='3'/>
+  <path d='M18 60 C34 41, 54 25, 118 24 L118 64 C55 64, 33 64, 18 60 Z' fill='{nose}' stroke='{outline}' stroke-width='2'/>
+  <rect x='109' y='29' width='84' height='10' rx='5' fill='{body}'/>
+  <rect x='111' y='48' width='82' height='6' rx='3' fill='{stripe}'/>
+  <path d='M69 39 C79 30, 93 27, 116 30 L116 45 C95 47, 81 48, 69 46 Z' fill='#294a72' opacity='0.92'/>
+  <g fill='#eaf6ff'>
+    <rect x='126' y='31' width='8' height='6' rx='2'/>
+    <rect x='137' y='31' width='8' height='6' rx='2'/>
+    <rect x='148' y='31' width='8' height='6' rx='2'/>
+    <rect x='159' y='31' width='8' height='6' rx='2'/>
+  </g>
+  <text x='165' y='64' font-size='16' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' fill='{body}'>{label}</text>
+</svg>"""
+    return " ".join(svg.split())
+
+
 TRAIN_TYPES = {
-    "KTX":  {"name": "KTX",   "emoji": "🚄", "color": "#2f80ed", "glow": "rgba(47,128,237,.85)"},
-    "SRT":  {"name": "SRT",   "emoji": "🚅", "color": "#8e44ad", "glow": "rgba(142,68,173,.85)"},
-    "신칸센": {"name": "신칸센", "emoji": "🚆", "color": "#e74c3c", "glow": "rgba(231,76,60,.85)"},
+    "KTX": {
+        "name": "KTX",
+        "emoji": "🚄",
+        "color": "#2f80ed",
+        "glow": "rgba(47,128,237,.85)",
+        "image": svg_data_uri(build_train_svg("KTX", "ktx", "#1565c0", "#1e88e5", "#7ec8ff", "#0d47a1")),
+    },
+    "SRT": {
+        "name": "SRT",
+        "emoji": "🚅",
+        "color": "#8e44ad",
+        "glow": "rgba(142,68,173,.85)",
+        "image": svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
+    },
+    "신칸센": {
+        "name": "신칸센",
+        "emoji": "🚆",
+        "color": "#e74c3c",
+        "glow": "rgba(231,76,60,.85)",
+        "image": svg_data_uri(build_train_svg("Shinkansen", "shinkansen", "#2b6cb0", "#1a4e80", "#f3f8ff", "#557a9b")),
+    },
 }
+
+
+def render_train_preview_gallery(selected_train: str) -> str:
+    cards = []
+    for key, train in TRAIN_TYPES.items():
+        border = train["color"] if key == selected_train else "rgba(255,255,255,.15)"
+        shadow = train["glow"] if key == selected_train else "rgba(0,0,0,.12)"
+        cards.append(
+            f"""
+            <div style='flex:1;min-width:0;background:rgba(255,255,255,.05);border:2px solid {border};
+                        border-radius:14px;padding:8px 6px;text-align:center;box-shadow:0 0 16px {shadow};'>
+                <img src='{train['image']}' alt='{key}' style='width:100%;max-height:56px;object-fit:contain;display:block;margin:0 auto 4px auto;'>
+                <div style='font-weight:800;font-size:13px;color:white;letter-spacing:.2px'>{key}</div>
+            </div>
+            """
+        )
+    return "<div style='display:flex;gap:8px;margin:6px 0 4px 0'>" + "".join(cards) + "</div>"
 
 SQUARE_TYPES = {
     "홍대입구": "blue",  "강남": "blue",  "왕십리": "blue",
@@ -409,7 +520,7 @@ def start_game():
     train = TRAIN_TYPES[st.session_state.selected_train]
     st.session_state.game_phase   = "ready_to_roll"
     st.session_state.last_message = (
-        f"{train['emoji']} {name}님의 {train['name']} 출발! {GOAL_STATION}역을 향해 달립니다!\n"
+        f"🚄 {name}님의 {train['name']} 출발! {GOAL_STATION}역을 향해 달립니다!\n"
         f"🎯 현재 목적지: {st.session_state.destination}"
     )
 
@@ -1098,7 +1209,9 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #board-container{{position:relative;width:100%;aspect-ratio:{ORIGINAL_WIDTH}/{ORIGINAL_HEIGHT};border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
 .token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
-#token-player{{background:radial-gradient(circle at 35% 35%,#8fd3ff,#2f80ed);box-shadow:0 0 14px 4px rgba(47,128,237,.9);animation:playerPulse 1.4s ease-in-out infinite}}
+.train-token{{width:68px;height:38px;border-radius:18px;background:rgba(255,255,255,.96);padding:3px 5px;overflow:hidden}}
+#token-player img{{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}}
+#token-player{{box-shadow:0 0 14px 4px rgba(47,128,237,.9);animation:playerPulse 1.4s ease-in-out infinite}}
 #token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
 @keyframes binbouPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(255,0,100,.8)}}50%{{box-shadow:0 0 24px 10px rgba(255,0,100,.3)}}}}
@@ -1166,6 +1279,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 .panel-title{{font-size:11px;font-weight:700;color:#aaa;margin-bottom:6px;letter-spacing:.5px}}
 .stat-row{{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}}
 .stat-val{{font-weight:700;color:#f1c40f}}
+.train-badge-mini{{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}}
+.train-badge-mini img{{width:48px;height:20px;object-fit:contain;background:rgba(255,255,255,.96);border-radius:10px;padding:1px 4px;box-shadow:0 0 10px rgba(0,0,0,.18)}}
 .log-item{{font-size:10px;color:#ccc;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.05)}}
 .legend-row{{display:flex;align-items:center;gap:5px;font-size:10px;color:#ccc;margin-bottom:3px}}
 .legend-dot{{width:10px;height:10px;border-radius:50%;flex-shrink:0}}
@@ -1175,7 +1290,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   <div id="board-col">
     <div id="board-container">
       <img id="board-img" src="" alt="노선도">
-      <div id="token-player" class="token">🚄</div>
+      <div id="token-player" class="token train-token"><img id="token-player-img" alt="열차"></div>
       <div id="token-binbou" class="token" style="display:none">👿</div>
       <div id="station-label" class="slabel" style="display:none"></div>
       <div id="dest-banner">🎯 목적지: <span id="dest-name">-</span></div>
@@ -1251,6 +1366,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const container=document.getElementById('board-container');
   const boardImg=document.getElementById('board-img');
   const tokenPlayer=document.getElementById('token-player');
+  const playerImg=document.getElementById('token-player-img');
   const tokenBinbou=document.getElementById('token-binbou');
   const label=document.getElementById('station-label');
   const pbar=document.getElementById('progress-bar');
@@ -1278,10 +1394,14 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX';
   document.getElementById('dest-name').textContent=d.destination||'-';
   if(d.train){{
-    tokenPlayer.textContent=d.train.emoji||'🚄';
-    tokenPlayer.style.background='radial-gradient(circle at 35% 35%,#ffffff,'+(d.train.color||'#2f80ed')+')';
+    if(playerImg){{
+      playerImg.src=d.train.image||'';
+      playerImg.alt=d.train.name||'열차';
+    }}
+    tokenPlayer.style.borderColor=d.train.color||'#2f80ed';
     tokenPlayer.style.boxShadow='0 0 14px 4px '+(d.train.glow||'rgba(47,128,237,.85)');
     tokenPlayer.title=(d.train.name||'열차')+' · '+(d.playerName||'플레이어');
+    document.getElementById('s-train').innerHTML='<span class="train-badge-mini"><img src="'+(d.train.image||'')+'" alt="'+(d.train.name||'열차')+'"><span>'+(d.train.name||d.trainKey||'KTX')+'</span></span>';
   }}
   const pct=d.stations.length>1?(d.position/(d.stations.length-1)*100).toFixed(1):0;
   pbar.style.width=pct+'%';
@@ -1686,12 +1806,13 @@ with st.sidebar:
     if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
         st.session_state.train_selector = st.session_state.get("selected_train", "KTX")
     current_phase_for_train = st.session_state.get("game_phase", "start")
+    st.markdown(render_train_preview_gallery(st.session_state.train_selector), unsafe_allow_html=True)
     chosen_train = st.radio(
         "함께 달릴 열차를 골라 주세요!",
         train_keys,
         key="train_selector",
         horizontal=True,
-        format_func=lambda key: f"{TRAIN_TYPES[key]['emoji']} {key}",
+        format_func=lambda key: key,
         disabled=current_phase_for_train not in ("start", "game_over"),
     )
     st.session_state.selected_train = chosen_train
