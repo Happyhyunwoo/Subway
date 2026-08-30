@@ -1402,31 +1402,37 @@ GHOST_MAZE_PUZZLES = [
     {
         "name": "A", "rows": 5, "cols": 5, "start": [4, 0], "exit": [0, 4],
         "walls": [[3, 1], [3, 2], [3, 3], [1, 0], [1, 1], [1, 3], [1, 4], [2, 3], [4, 2]],
+        "ghost": [4, 1],
         "ghosts": [[4, 4], [2, 4], [0, 0]],
     },
     {
         "name": "B", "rows": 5, "cols": 5, "start": [4, 4], "exit": [0, 0],
         "walls": [[3, 3], [3, 2], [3, 1], [1, 4], [1, 3], [1, 1], [1, 0], [2, 1], [4, 2]],
+        "ghost": [4, 3],
         "ghosts": [[4, 0], [2, 0], [0, 4]],
     },
     {
         "name": "C", "rows": 5, "cols": 5, "start": [0, 0], "exit": [4, 4],
         "walls": [[1, 1], [1, 2], [1, 3], [3, 0], [3, 1], [3, 3], [3, 4], [2, 3], [0, 2]],
+        "ghost": [0, 1],
         "ghosts": [[0, 4], [2, 4], [4, 0]],
     },
     {
         "name": "D", "rows": 5, "cols": 5, "start": [0, 4], "exit": [4, 0],
         "walls": [[1, 3], [1, 2], [1, 1], [3, 4], [3, 3], [3, 1], [3, 0], [2, 1], [0, 2]],
+        "ghost": [0, 3],
         "ghosts": [[0, 0], [2, 0], [4, 4]],
     },
     {
         "name": "E", "rows": 5, "cols": 5, "start": [4, 2], "exit": [0, 2],
         "walls": [[3, 1], [3, 2], [3, 3], [1, 1], [1, 3]],
+        "ghost": [3, 4],
         "ghosts": [[3, 4], [1, 0], [1, 2]],
     },
     {
         "name": "F", "rows": 5, "cols": 5, "start": [4, 2], "exit": [0, 2],
         "walls": [[3, 1], [3, 2], [3, 3], [1, 1], [1, 3]],
+        "ghost": [3, 0],
         "ghosts": [[3, 0], [1, 4], [1, 2]],
     },
 ]
@@ -1436,8 +1442,9 @@ def build_ghost_maze_puzzle(puzzle_index):
     """고정된 벽 안에서 플레이어와 먹보유령이 함께 움직이는 추격 미로를 반환합니다."""
     idx = int(puzzle_index) % len(GHOST_MAZE_PUZZLES)
     spec = GHOST_MAZE_PUZZLES[idx]
-    # 기존 미로의 벽 배치는 그대로 사용합니다. 세 개의 위험 칸 대신 첫 번째 위치를
-    # 움직이는 먹보유령의 시작점으로 사용해, 추격 규칙을 눈으로 예측할 수 있게 합니다.
+    # 벽 배치는 그대로 유지하되, 유령은 플레이어와 같은 연결 통로에 있는
+    # 검증된 시작점에서 출발합니다. (이전 버전의 일부 시작점은 벽 너머의
+    # 분리된 구역에 있어 최단 경로가 존재하지 않아 유령이 움직이지 않았습니다.)
     ghost_start = list(spec.get("ghost", (spec.get("ghosts") or [[0, 0]])[0]))
     return {
         "maze_index": idx,
@@ -1755,6 +1762,54 @@ def resolve_ghost_minigame(choice_index):
     finish_ghost_puzzle(game, success, result_msg, ladder_payload=ladder_payload)
 
 
+def ghost_maze_positions_connected(game, start_pos, target_pos):
+    """두 위치가 현재 벽 배치에서 같은 통로로 연결되어 있는지 확인합니다."""
+    rows = int(game.get("rows", 5))
+    cols = int(game.get("cols", 5))
+    walls = {tuple(x) for x in game.get("walls", [])}
+    start_pos = tuple(start_pos)
+    target_pos = tuple(target_pos)
+    if start_pos in walls or target_pos in walls:
+        return False
+    queue = [start_pos]
+    seen = {start_pos}
+    head = 0
+    while head < len(queue):
+        r, c = queue[head]
+        head += 1
+        if (r, c) == target_pos:
+            return True
+        for dr, dc in [(-1, 0), (0, -1), (1, 0), (0, 1)]:
+            nxt = (r + dr, c + dc)
+            if not (0 <= nxt[0] < rows and 0 <= nxt[1] < cols):
+                continue
+            if nxt in walls or nxt in seen:
+                continue
+            seen.add(nxt)
+            queue.append(nxt)
+    return False
+
+
+def repair_legacy_ghost_maze_position(game):
+    """이전 코드에서 분리된 구역에 생성된 유령을 현재 미로의 검증된 위치로 옮깁니다."""
+    rows = int(game.get("rows", 5))
+    cols = int(game.get("cols", 5))
+    player = tuple(game.get("player", game.get("start", [rows - 1, 0])))
+    current = tuple(game.get("ghost", [0, cols - 1]))
+    if ghost_maze_positions_connected(game, current, player):
+        return False
+
+    idx = int(game.get("maze_index", 0)) % len(GHOST_MAZE_PUZZLES)
+    spec = GHOST_MAZE_PUZZLES[idx]
+    preferred = tuple(spec.get("ghost", (spec.get("ghosts") or [[0, cols - 1]])[0]))
+    if preferred != player and ghost_maze_positions_connected(game, preferred, player):
+        game["ghost"] = list(preferred)
+        game["ghost_start"] = list(preferred)
+        game["feedback"] = "👿 먹보유령이 연결된 통로로 이동했습니다. 이제 열차가 움직일 때마다 한 칸씩 추격합니다."
+        return True
+    return False
+
+
 def resolve_ghost_maze_move(direction):
     """플레이어가 한 칸 이동하면 먹보유령도 최단 경로로 한 칸 추격합니다."""
     game = st.session_state.get("ghost_game")
@@ -1771,6 +1826,9 @@ def resolve_ghost_maze_move(direction):
     dr, dc = deltas[direction]
     nr, nc = r + dr, c + dc
     walls = {tuple(x) for x in game.get("walls", [])}
+    # 코드 업데이트 전에 생성된 미로가 세션에 남아 있어도, 분리된 구역의 유령을
+    # 검증된 연결 통로로 한 번 보정합니다.
+    repair_legacy_ghost_maze_position(game)
     legacy_ghosts = game.get("ghosts", [])
     ghost_before = tuple(game.get("ghost", legacy_ghosts[0] if legacy_ghosts else [0, cols - 1]))
     exit_pos = tuple(game.get("exit", [0, cols - 1]))
@@ -1778,9 +1836,11 @@ def resolve_ghost_maze_move(direction):
     # 벽이나 화면 밖을 누른 것은 실제 한 칸 이동으로 세지 않습니다. 따라서 유령도 움직이지 않습니다.
     if not (0 <= nr < rows and 0 <= nc < cols):
         game["feedback"] = "🚧 미로 밖으로는 갈 수 없어요. 이 시도에서는 👿도 움직이지 않습니다."
+        st.session_state.ghost_game = game
         return
     if (nr, nc) in walls:
         game["feedback"] = "🧱 벽에 막혔어요. 이 시도에서는 👿도 움직이지 않습니다."
+        st.session_state.ghost_game = game
         return
 
     game["player"] = [nr, nc]
@@ -1824,6 +1884,8 @@ def resolve_ghost_maze_move(direction):
         "🚄 열차가 한 칸 이동했고 👿 먹보유령도 벽을 피해 한 칸 추격했습니다. "
         "현재 위치를 보고 다음 방향을 선택하세요."
     )
+    # Streamlit rerun 뒤에도 변경된 중첩 dict가 확실히 유지되도록 다시 대입합니다.
+    st.session_state.ghost_game = game
 
 
 def apply_square_event(station_name, pos):
