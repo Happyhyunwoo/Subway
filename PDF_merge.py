@@ -329,6 +329,11 @@ TREASURE_REWARD = 30
 TREASURE_RETRY_REWARD = 20
 TREASURE_MAX_ATTEMPTS = 3
 
+# 5연속/10연속 정답 달성 시 열리는 특별 보물상자.
+# 네 보상은 상자 네 개에 하나씩 무작위로 배치됩니다.
+STREAK_TREASURE_MILESTONES = {5, 10}
+STREAK_TREASURE_REWARDS = [100, 0, 20, 10]
+
 # 보물상자에서는 지식 퀴즈 대신 직접 상태를 바꾸는 퍼즐형 활동을 사용합니다.
 TREASURE_GAME_TYPES = [
     "car_sort",
@@ -937,6 +942,8 @@ def init_game(keep_name=True):
     st.session_state.post_move_delay   = 0.0
     st.session_state.treasure_effect   = None
     st.session_state.celebration_event = None
+    # 5연속/10연속 정답 때 사용하는 별도의 보물상자 선택 상태입니다.
+    st.session_state.streak_treasure_game = None
     st.session_state.ladder_animation  = None
 
 
@@ -2353,6 +2360,93 @@ def move_backward():
     st.session_state.last_message = base_msg + "\n\n다시 주사위를 굴려 보세요."
 
 
+
+def continue_after_correct_answer(gained, bonus_msg="", streak_reward_msg=""):
+    """정답 처리 또는 연속 정답 보물상자 종료 뒤 원래 게임 흐름으로 복귀합니다."""
+    summary = f"✅ 정답! (+{gained}점{bonus_msg})"
+    if streak_reward_msg:
+        summary += f"\n\n{streak_reward_msg}"
+
+    if st.session_state.quiz_queue:
+        st.session_state.current_quiz = st.session_state.quiz_queue.pop(0)
+        st.session_state.game_phase = "answering_quiz"
+        st.session_state.last_message = summary + "\n\n📝 다음 퀴즈!"
+    elif st.session_state.extra_roll:
+        st.session_state.extra_roll = False
+        st.session_state.game_phase = "ready_to_roll"
+        st.session_state.last_message = summary + "\n\n🎲 보너스 주사위 발동!"
+    else:
+        st.session_state.game_phase = "ready_to_roll"
+        st.session_state.last_message = summary + "\n\n주사위를 굴려 보세요."
+
+
+def begin_streak_treasure(streak, gained, bonus_msg=""):
+    """5연속 또는 10연속 정답 달성 시 네 개의 보물상자를 엽니다."""
+    rewards = STREAK_TREASURE_REWARDS[:]
+    random.shuffle(rewards)
+    st.session_state.streak_treasure_game = {
+        "id": random.randint(100000, 999999),
+        "streak": int(streak),
+        "rewards": rewards,
+        "selected": None,
+        "reward": None,
+        "gained": int(gained),
+        "bonus_msg": bonus_msg,
+    }
+    st.session_state.game_phase = "streak_treasure"
+    st.session_state.play_sound = "treasure"
+    st.session_state.last_message = (
+        f"🔥 **{streak}연속 정답 달성!** 특별 보물상자가 열렸습니다!\n\n"
+        "🎁 네 개 중 마음에 드는 보물상자 하나를 골라 보세요."
+    )
+    add_event_log(f"🎁 {streak}연속 정답 특별 보물상자 등장!")
+
+
+def open_streak_treasure(index):
+    """선택한 연속 정답 보물상자를 한 번만 열고 즉시 보상을 지급합니다."""
+    game = st.session_state.get("streak_treasure_game")
+    if not game or game.get("selected") is not None:
+        return
+    rewards = list(game.get("rewards", []))
+    i = int(index)
+    if i < 0 or i >= len(rewards):
+        return
+
+    reward = int(rewards[i])
+    game["selected"] = i
+    game["reward"] = reward
+    st.session_state.streak_treasure_game = game
+
+    if reward > 0:
+        st.session_state.score += reward
+        reward_text = f"+{reward}점"
+        result = f"🎉 {i + 1}번 보물상자에서 **{reward_text}** 획득!"
+    else:
+        reward_text = "꽝"
+        result = f"💨 {i + 1}번 보물상자는 **꽝!** 다음 기회를 노려 보세요."
+
+    # 기존 보드의 보물 오버레이를 재사용해 상자를 연 순간 짧은 시각 효과를 보여 줍니다.
+    st.session_state.treasure_effect = {
+        "id": random.randint(100000, 999999),
+        "message": f"보물상자 결과: {reward_text}!",
+    }
+    st.session_state.play_sound = "treasure"
+    st.session_state.last_message = result + "\n\n다른 상자에 무엇이 있었는지도 확인해 보세요."
+    add_event_log(f"🎁 연속 정답 보물상자: {reward_text}")
+
+
+def finish_streak_treasure():
+    """상자 결과를 확인한 뒤 퀴즈/추가 주사위/다음 턴으로 이어갑니다."""
+    game = st.session_state.get("streak_treasure_game")
+    if not game or game.get("selected") is None:
+        return
+    reward = int(game.get("reward", 0))
+    reward_msg = "🎁 특별 보물상자: 꽝" if reward == 0 else f"🎁 특별 보물상자: +{reward}점"
+    gained = int(game.get("gained", 10))
+    bonus_msg = game.get("bonus_msg", "")
+    st.session_state.streak_treasure_game = None
+    continue_after_correct_answer(gained, bonus_msg, reward_msg)
+
 def submit_answer(answer):
     quiz = st.session_state.current_quiz
     if quiz is None:
@@ -2388,18 +2482,12 @@ def submit_answer(answer):
         st.session_state.current_quiz = None
         add_event_log(f"✅ 정답! +{gained}점{bonus_msg}")
 
-        if st.session_state.quiz_queue:
-            st.session_state.current_quiz = st.session_state.quiz_queue.pop(0)
-            st.session_state.game_phase   = "answering_quiz"
-            st.session_state.last_message = f"✅ 정답! (+{gained}점{bonus_msg})\n\n📝 다음 퀴즈!"
-        elif st.session_state.extra_roll:
-            st.session_state.extra_roll  = False
-            st.session_state.game_phase  = "ready_to_roll"
-            st.session_state.last_message = f"✅ 정답! (+{gained}점{bonus_msg})\n\n🎲 보너스 주사위 발동!"
-        else:
-            st.session_state.game_phase  = "ready_to_roll"
-            st.session_state.last_message = f"✅ 정답! (+{gained}점{bonus_msg})\n\n주사위를 굴려 보세요."
+        # 5연속/10연속 정답에서는 다음 단계로 바로 넘어가지 않고 특별 보물상자를 먼저 엽니다.
         st.session_state.quiz_key += 1
+        if streak in STREAK_TREASURE_MILESTONES:
+            begin_streak_treasure(streak, gained, bonus_msg)
+        else:
+            continue_after_correct_answer(gained, bonus_msg)
     else:
         st.session_state.correct_streak = 0
         st.session_state.celebration_event = None
@@ -3137,6 +3225,52 @@ with st.sidebar:
         if st.button("🎲 주사위 굴리기!", key="top_roll_dice", use_container_width=True, type="primary"):
             move_forward(); st.rerun()
 
+    elif phase == "streak_treasure":
+        game = st.session_state.get("streak_treasure_game")
+        st.subheader("🎁 연속 정답 보물상자")
+        if game:
+            streak = int(game.get("streak", 5))
+            selected = game.get("selected")
+            rewards = list(game.get("rewards", STREAK_TREASURE_REWARDS))
+            st.success(f"🔥 {streak}연속 정답 보너스! 보물상자 하나를 골라 주세요.")
+
+            if selected is None:
+                chest_cols = st.columns(4)
+                for i, col in enumerate(chest_cols):
+                    with col:
+                        if st.button(
+                            f"🎁\n{i + 1}번",
+                            key=f"streak_chest_{game['id']}_{i}",
+                            use_container_width=True,
+                            type="primary",
+                        ):
+                            open_streak_treasure(i); st.rerun()
+                st.caption("네 상자에는 +100점, +20점, +10점, 꽝이 하나씩 무작위로 들어 있습니다.")
+            else:
+                reward = int(game.get("reward", 0))
+                if reward > 0:
+                    st.success(f"🎉 선택한 {int(selected) + 1}번 상자: +{reward}점!")
+                else:
+                    st.warning(f"💨 선택한 {int(selected) + 1}번 상자: 꽝!")
+
+                reveal_cols = st.columns(4)
+                for i, col in enumerate(reveal_cols):
+                    label = "꽝" if int(rewards[i]) == 0 else f"+{int(rewards[i])}점"
+                    picked = "✅" if i == int(selected) else ""
+                    with col:
+                        st.markdown(
+                            f"<div style='text-align:center;border:1px solid #777;border-radius:10px;padding:8px 3px'>"
+                            f"<div style='font-size:25px'>📦</div><b>{i+1}번</b><br>{label} {picked}</div>",
+                            unsafe_allow_html=True,
+                        )
+                if st.button(
+                    "➡️ 계속하기",
+                    key=f"streak_chest_continue_{game['id']}",
+                    use_container_width=True,
+                    type="primary",
+                ):
+                    finish_streak_treasure(); st.rerun()
+
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
         game_type = game.get("game_type", "route") if game else "route"
@@ -3616,6 +3750,7 @@ with st.sidebar:
 - 👿 먹보유령을 만나면 공개된 선로를 눈으로 따라 🚪 탈출구로 이어지는 출발 번호를 찾기
 - 🎁 주황색 보물상자 칸에서는 역마다 다른 퍼즐 미니게임 도전 (성공해야 점수 획득)
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
+- 🎁 5연속·10연속 정답 달성 시 특별 보물상자 4개 중 하나 선택 (+100점 / +20점 / +10점 / 꽝)
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
 """)
@@ -3639,7 +3774,7 @@ msg   = st.session_state.last_message
 phase = st.session_state.game_phase
 if phase == "game_over":
     st.success(msg)
-elif phase in ("answering_quiz", "treasure_minigame"):
+elif phase in ("answering_quiz", "treasure_minigame", "streak_treasure"):
     st.warning(msg)
 elif phase in ("waiting_penalty_roll", "ghost_minigame"):
     st.error(msg)
