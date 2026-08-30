@@ -1,6 +1,7 @@
 import base64
 import json
 import random
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -761,6 +762,8 @@ def init_game(keep_name=True):
     st.session_state.ghost_game        = None
     st.session_state.treasure_game     = None
     st.session_state.pending_treasure  = None
+    st.session_state.pending_post_move = None
+    st.session_state.post_move_delay   = 0.0
     st.session_state.treasure_effect   = None
     st.session_state.celebration_event = None
     st.session_state.ladder_animation  = None
@@ -1252,6 +1255,73 @@ def apply_square_event(station_name, pos):
 
     return "\n\n".join(messages) if messages else None, double_quiz, ghost_penalty
 
+def get_move_animation_delay(event):
+    """브라우저 보드의 주사위·플레이어·유령 이동 애니메이션 시간을 계산합니다.
+
+    Streamlit 위젯은 Python rerun 시 즉시 갱신되지만 components.html 안의 이동 애니메이션은
+    브라우저에서 비동기로 재생됩니다. 따라서 미니게임이 필요한 경우 이 시간 동안
+    game_phase를 ``moving``으로 유지한 뒤 미니게임 화면을 엽니다.
+    """
+    event = event or {}
+    path = event.get("path_indices") or []
+    ghost_path = event.get("binbou_path_indices") or []
+
+    # JavaScript runDiceAnim: 900ms 회전 + 600ms 결과 표시
+    dice_seconds = 1.50 if event.get("dice") is not None else 0.0
+    # JavaScript animateToken: min(path 길이 × 220ms, 2000ms)
+    player_seconds = min(len(path) * 0.220, 2.0) if len(path) > 1 else 0.0
+    # JavaScript animateGhostToken: min(path 길이 × 170ms, 1500ms)
+    ghost_seconds = min(len(ghost_path) * 0.170, 1.5) if len(ghost_path) > 1 else 0.0
+
+    # 이미지 로드/프레임 타이밍 차이를 위한 작은 여유 시간을 둡니다.
+    return dice_seconds + player_seconds + ghost_seconds + 0.35
+
+
+def queue_post_move_action(action, payload, event):
+    """말 이동이 끝난 뒤 실행할 미니게임/후속 처리를 예약합니다."""
+    st.session_state.pending_post_move = {
+        "action": action,
+        "payload": payload,
+    }
+    st.session_state.post_move_delay = get_move_animation_delay(event)
+    st.session_state.game_phase = "moving"
+    base_source = payload.get("resume", payload) if isinstance(payload, dict) else {}
+    base_msg = base_source.get("base_msg", "") if isinstance(base_source, dict) else ""
+    if base_msg:
+        st.session_state.last_message = base_msg + "\n\n🚃 말이 칸까지 이동하는 중입니다..."
+    else:
+        st.session_state.last_message = "🚃 말이 칸까지 이동하는 중입니다..."
+
+
+def activate_pending_post_move():
+    """이동 애니메이션이 끝난 뒤 예약된 화면을 실제로 활성화합니다."""
+    pending = st.session_state.get("pending_post_move")
+    if not pending:
+        return False
+
+    st.session_state.pending_post_move = None
+    st.session_state.post_move_delay = 0.0
+    action = pending.get("action")
+    payload = pending.get("payload") or {}
+
+    if action == "ghost":
+        begin_ghost_minigame(
+            int(payload.get("penalty", 10)),
+            payload.get("resume", {}),
+        )
+        return True
+
+    if action == "forward_continue":
+        continue_after_forward(
+            payload.get("base_msg", ""),
+            bool(payload.get("double_quiz", False)),
+            bool(payload.get("did_win", False)),
+        )
+        return True
+
+    return False
+
+
 def move_forward():
     if st.session_state.game_phase != "ready_to_roll":
         return
@@ -1265,6 +1335,8 @@ def move_forward():
     st.session_state.binbou_effect = None
     st.session_state.treasure_effect = None
     st.session_state.pending_treasure = None
+    st.session_state.pending_post_move = None
+    st.session_state.post_move_delay = 0.0
 
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
@@ -1324,16 +1396,36 @@ def move_forward():
     if final_pos != landing_pos:
         base_msg += f"\n\n📌 현재 위치: **{final_station}**역"
 
-    # 유령에게 잡혔다면 승리·퀴즈보다 먼저 미니게임을 해결합니다.
+    # 유령 사다리/보물상자 퍼즐은 말과 유령의 이동 애니메이션이 모두 끝난 뒤 엽니다.
     if touching_ghost:
-        begin_ghost_minigame(
-            ghost_penalty,
+        if st.session_state.play_sound is None:
+            st.session_state.play_sound = "dice"
+        queue_post_move_action(
+            "ghost",
             {
-                "kind": "forward",
+                "penalty": ghost_penalty,
+                "resume": {
+                    "kind": "forward",
+                    "base_msg": base_msg,
+                    "double_quiz": double_quiz,
+                    "did_win": did_win,
+                },
+            },
+            st.session_state.animation_event,
+        )
+        return
+
+    if st.session_state.get("pending_treasure"):
+        if st.session_state.play_sound is None:
+            st.session_state.play_sound = "dice"
+        queue_post_move_action(
+            "forward_continue",
+            {
                 "base_msg": base_msg,
                 "double_quiz": double_quiz,
                 "did_win": did_win,
             },
+            st.session_state.animation_event,
         )
         return
 
@@ -1394,9 +1486,14 @@ def move_backward():
     base_msg = f"😢 뒤로 가기 주사위 **{dice}** → **{STATIONS[new_pos]}**역으로 후퇴!"
 
     if touching_ghost:
-        begin_ghost_minigame(
-            10,
-            {"kind": "backward", "base_msg": base_msg, "did_win": False},
+        st.session_state.play_sound = "wrong"
+        queue_post_move_action(
+            "ghost",
+            {
+                "penalty": 10,
+                "resume": {"kind": "backward", "base_msg": base_msg, "did_win": False},
+            },
+            st.session_state.animation_event,
         )
         return
 
@@ -2090,7 +2187,11 @@ with st.sidebar:
     # Streamlit rerun으로 사이드바 스크롤이 위로 초기화되어도
     # 다음 행동을 위해 다시 아래로 스크롤할 필요가 없습니다.
     # ─────────────────────────────────────────────
-    if phase == "ready_to_roll":
+    if phase == "moving":
+        st.subheader("🚃 이동 중")
+        st.info("말이 도착 칸까지 이동하고 있습니다. 이동이 끝나면 이벤트 화면이 열립니다.")
+
+    elif phase == "ready_to_roll":
         st.subheader("🎲 지금 할 일: 주사위")
         streak = st.session_state.correct_streak
         if streak >= 3:
@@ -2351,3 +2452,11 @@ else:
 
 map_bytes, is_jpg = get_map_bytes()
 render_board(map_bytes, is_jpg)
+
+# Streamlit의 사이드바는 rerun 직후 갱신되는 반면 보드의 토큰 이동은 브라우저에서
+# 비동기로 재생됩니다. 미니게임이 예약된 이동에서는 보드 애니메이션이 끝날 때까지
+# 현재 run을 유지한 다음, 다음 rerun에서 미니게임을 표시합니다.
+if phase == "moving" and st.session_state.get("pending_post_move"):
+    time.sleep(max(0.0, float(st.session_state.get("post_move_delay", 0.0))))
+    if activate_pending_post_move():
+        st.rerun()
