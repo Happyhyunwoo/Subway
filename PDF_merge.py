@@ -880,6 +880,7 @@ def init_game(keep_name=True):
     st.session_state.score_x2         = False
     st.session_state.event_log         = []
     st.session_state.ghost_game        = None
+    st.session_state.ghost_puzzle_counter = 0
     st.session_state.treasure_game     = None
     st.session_state.pending_treasure  = None
     st.session_state.last_treasure_game_type = None
@@ -1254,32 +1255,30 @@ def treasure_puzzle_action(action, index=None):
         return
 
 
-def generate_ladder_layout():
-    """4줄 사다리의 가로 연결선과 아래쪽 결과를 생성합니다.
+GHOST_ROUTE_PUZZLES = [
+    # 결과를 숨겨 놓고 찍는 사다리가 아니라, 아래 탈출구 위치가 처음부터 보이는
+    # 시각적 경로 추적 퍼즐입니다. 퍼즐은 이 고정 순서대로 순환하므로 결과에 운 요소가 없습니다.
+    {"name": "A", "lefts": [0, 2, 1, 0, 2, 1, 2, 0, 1, 2, 0], "escape_end": 0},
+    {"name": "B", "lefts": [1, 0, 2, 1, 0, 1, 2, 0, 2, 1, 0], "escape_end": 3},
+    {"name": "C", "lefts": [2, 1, 0, 2, 1, 0, 1, 2, 0, 1, 2], "escape_end": 3},
+    {"name": "D", "lefts": [0, 1, 2, 1, 0, 2, 0, 1, 2, 0, 1], "escape_end": 3},
+    {"name": "E", "lefts": [1, 2, 0, 1, 2, 0, 2, 1, 0, 2, 1], "escape_end": 0},
+    {"name": "F", "lefts": [2, 0, 1, 2, 0, 1, 0, 2, 1, 0, 2], "escape_end": 2},
+]
 
-    각 가로선은 인접한 두 세로줄만 연결하며, 위에서 아래로 따라가면
-    시작 위치 4개가 서로 다른 끝점 4개에 일대일로 연결됩니다.
-    """
-    row_count = 11
-    rungs = []
-    last_left = None
-    for row in range(row_count):
-        candidates = [0, 1, 2]
-        if last_left is not None and len(candidates) > 1:
-            weighted = [c for c in candidates if c != last_left]
-            left = random.choice(weighted if random.random() < 0.72 else candidates)
-        else:
-            left = random.choice(candidates)
-        rungs.append({"row": row, "left": left})
-        last_left = left
 
-    bottom_outcomes = ["escape", "escape", "caught", "caught"]
-    random.shuffle(bottom_outcomes)
-    return rungs, bottom_outcomes
+def build_ghost_route_puzzle(puzzle_index):
+    """고정된 순서의 유령 선로 퍼즐을 반환합니다. 결과에는 난수 요소가 없습니다."""
+    idx = int(puzzle_index) % len(GHOST_ROUTE_PUZZLES)
+    spec = GHOST_ROUTE_PUZZLES[idx]
+    rungs = [{"row": row, "left": left} for row, left in enumerate(spec["lefts"])]
+    bottom_outcomes = ["caught"] * 4
+    bottom_outcomes[int(spec["escape_end"])] = "escape"
+    return rungs, bottom_outcomes, idx
 
 
 def ladder_endpoint(start_index, rungs):
-    """선택한 시작 번호가 실제 사다리를 따라 도착하는 끝점 번호를 계산합니다."""
+    """선택한 출발 번호가 선로를 따라 도착하는 끝점 번호를 계산합니다."""
     col = int(start_index)
     for rung in sorted(rungs, key=lambda r: r.get("row", 0)):
         left = int(rung.get("left", -1))
@@ -1291,53 +1290,63 @@ def ladder_endpoint(start_index, rungs):
 
 
 def render_ladder_preview(game):
-    """선택 전에는 결과를 숨긴 실제 사다리 모양을 사이드바에 보여줍니다."""
+    """탈출구와 유령 위치를 공개한 선로 추적 퍼즐을 사이드바에 표시합니다."""
     if not game:
         return
     rungs = game.get("rungs", [])
-    data = json.dumps({"rungs": rungs}, ensure_ascii=False)
+    outcomes = game.get("bottom_outcomes", ["caught", "caught", "caught", "caught"])
+    data = json.dumps({"rungs": rungs, "outcomes": outcomes}, ensure_ascii=False)
     preview_html = f"""
-    <div style="font-family:'Noto Sans KR',sans-serif;background:#16072a;border:1px solid #6741a8;border-radius:12px;padding:8px 6px 5px;color:white">
-      <div style="text-align:center;font-size:12px;font-weight:700;margin-bottom:3px">위에서 하나를 고르고 사다리를 따라가요!</div>
-      <svg id="ladder-preview" viewBox="0 0 360 255" style="width:100%;height:225px;display:block"></svg>
+    <div style="font-family:'Noto Sans KR',sans-serif;background:#16072a;border:1px solid #6741a8;border-radius:12px;padding:8px 6px 7px;color:white">
+      <div style="text-align:center;font-size:12px;font-weight:800;margin-bottom:2px">🚪 탈출구로 이어지는 출발 번호를 찾아요!</div>
+      <div style="text-align:center;font-size:10px;color:#cfc2e5;margin-bottom:3px">위의 1~4번 중 하나에서 시작해 가로 선을 만날 때마다 옆 선로로 이동하세요.</div>
+      <svg id="ghost-route-preview" viewBox="0 0 360 285" style="width:100%;height:255px;display:block" aria-label="먹보유령 탈출 선로 퍼즐"></svg>
     </div>
     <script>
     (()=>{{
       const d={data};
-      const svg=document.getElementById('ladder-preview');
+      const svg=document.getElementById('ghost-route-preview');
       const ns='http://www.w3.org/2000/svg';
-      const xs=[45,135,225,315], y0=32, y1=215;
+      const xs=[45,135,225,315], y0=34, y1=226;
       const add=(tag,attrs,text)=>{{const e=document.createElementNS(ns,tag);Object.entries(attrs||{{}}).forEach(([k,v])=>e.setAttribute(k,v));if(text!=null)e.textContent=text;svg.appendChild(e);return e;}};
       xs.forEach((x,i)=>{{
-        add('text',{{x,y:18,'text-anchor':'middle',fill:'#fff','font-size':'14','font-weight':'700'}},String(i+1));
-        add('line',{{x1:x,y1:y0,x2:x,y2:y1,stroke:'#e7d8ff','stroke-width':'5','stroke-linecap':'round'}});
-        add('circle',{{cx:x,cy:y1+17,r:12,fill:'#3c245f',stroke:'#9b75d6','stroke-width':'2'}});
-        add('text',{{x,y:y1+21,'text-anchor':'middle',fill:'#fff','font-size':'13','font-weight':'700'}},'?');
+        add('circle',{{cx:x,cy:17,r:14,fill:'#3d2861',stroke:'#a98bd5','stroke-width':'2'}});
+        add('text',{{x,y:22,'text-anchor':'middle',fill:'#fff','font-size':'14','font-weight':'900'}},String(i+1));
+        add('line',{{x1:x,y1:y0,x2:x,y2:y1,stroke:'#eee5ff','stroke-width':'5','stroke-linecap':'round'}});
       }});
       (d.rungs||[]).forEach((r,idx)=>{{
         const y=y0+((idx+1)/((d.rungs||[]).length+1))*(y1-y0);
         const l=Math.max(0,Math.min(2,Number(r.left)||0));
-        add('line',{{x1:xs[l],y1:y,x2:xs[l+1],y2:y,stroke:'#ffd166','stroke-width':'5','stroke-linecap':'round'}});
+        add('line',{{x1:xs[l],y1:y,x2:xs[l+1],y2:y,stroke:'#ffd166','stroke-width':'6','stroke-linecap':'round'}});
+      }});
+      xs.forEach((x,i)=>{{
+        const escaped=(d.outcomes||[])[i]==='escape';
+        add('circle',{{cx:x,cy:251,r:20,fill:escaped?'#17795c':'#742a4d',stroke:escaped?'#84f3cf':'#ff93b8','stroke-width':'3'}});
+        add('text',{{x,y:258,'text-anchor':'middle','font-size':'20'}},escaped?'🚪':'👿');
+        add('text',{{x,y:280,'text-anchor':'middle',fill:escaped?'#8ff8d7':'#ffbad0','font-size':'10','font-weight':'800'}},escaped?'탈출':'유령');
       }});
     }})();
     </script>
     """
-    components.html(preview_html, height=250, scrolling=False)
+    components.html(preview_html, height=290, scrolling=False)
 
 
 def begin_ghost_minigame(penalty, resume):
-    """유령 접촉 시 즉시 감점하지 않고 4개 사다리 미니게임을 시작합니다."""
+    """유령 접촉 시 운이 아닌 시각적 선로 추적 퍼즐을 시작합니다."""
     penalty = max(0, int(penalty))
     st.session_state.binbou_pos = st.session_state.position
     st.session_state.binbou_attached = True
 
-    # 실제 사다리 구조를 먼저 만든 뒤, 아래쪽 결과 두 칸은 탈출 / 두 칸은 잡힘으로 정합니다.
-    rungs, bottom_outcomes = generate_ladder_layout()
+    # 매 접촉마다 미리 정해 둔 퍼즐을 차례로 사용합니다. 아래 결과는 처음부터 공개됩니다.
+    puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
+    rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
+    st.session_state.ghost_puzzle_counter = puzzle_counter + 1
 
     st.session_state.ghost_game = {
         "id": random.randint(100000, 999999),
         "rungs": rungs,
         "bottom_outcomes": bottom_outcomes,
+        "puzzle_index": puzzle_index,
         "penalty": penalty,
         "resume": resume,
     }
@@ -1345,16 +1354,16 @@ def begin_ghost_minigame(penalty, resume):
     st.session_state.binbou_effect = {
         "id": random.randint(100000, 999999),
         "type": "challenge",
-        "message": "👿 먹보유령과 사다리 게임! 4개 중 하나를 고르세요. 2개는 탈출, 2개는 잡힘!",
+        "message": "👿 먹보유령 선로 퍼즐! 눈으로 경로를 따라 탈출구와 연결되는 출발 번호를 찾으세요!",
         "penalty": 0,
     }
     st.session_state.play_sound = "ghost"
     st.session_state.last_message = (
         resume.get("base_msg", "")
-        + "\n\n👿 **먹보유령 사다리 게임!** 4개의 사다리 중 하나를 골라 보세요. "
-          "두 사다리는 탈출, 나머지 두 사다리는 먹보유령에게 잡혀요!"
+        + "\n\n👿 **먹보유령 선로 탈출 퍼즐!** 아래의 🚪 탈출구 위치는 공개되어 있습니다. "
+          "선로를 눈으로 따라가서 탈출구에 도착하는 위쪽 번호를 선택하세요. 운 요소는 없습니다!"
     )
-    add_event_log("🪜 먹보유령 사다리 게임 시작!")
+    add_event_log("🛤️ 먹보유령 선로 탈출 퍼즐 시작!")
 
 
 def continue_after_forward(base_msg, double_quiz, did_win):
@@ -1410,7 +1419,7 @@ def continue_after_forward(base_msg, double_quiz, did_win):
 
 
 def resolve_ghost_minigame(choice_index):
-    """4개 사다리 미니게임 결과를 처리한 뒤 원래 게임 흐름으로 복귀합니다."""
+    """선로 퍼즐 선택 결과를 판정한 뒤 원래 게임 흐름으로 복귀합니다."""
     game = st.session_state.get("ghost_game")
     if not game:
         return
@@ -1419,13 +1428,14 @@ def resolve_ghost_minigame(choice_index):
     if not 0 <= choice_index < 4:
         return
 
-    # 이전 버전 세션이 남아 있어도 실제 사다리 규칙으로 안전하게 전환합니다.
     rungs = game.get("rungs")
     bottom_outcomes = game.get("bottom_outcomes")
     if not isinstance(rungs, list) or not rungs or not isinstance(bottom_outcomes, list) or len(bottom_outcomes) != 4:
-        rungs, bottom_outcomes = generate_ladder_layout()
+        # 이전 세션 데이터가 남아 있어도 난수 없이 해당 퍼즐 번호로 복구합니다.
+        rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(game.get("puzzle_index", 0))
         game["rungs"] = rungs
         game["bottom_outcomes"] = bottom_outcomes
+        game["puzzle_index"] = puzzle_index
 
     penalty = int(game.get("penalty", 10))
     resume = game.get("resume", {})
@@ -1435,7 +1445,7 @@ def resolve_ghost_minigame(choice_index):
 
     if success:
         result_msg = (
-            f"💨 {choice_index + 1}번에서 출발해 {end_index + 1}번 끝점 도착! 탈출 성공! "
+            f"💨 {choice_index + 1}번 선로를 따라 {end_index + 1}번 끝점의 🚪 탈출구에 도착! 퍼즐 성공! "
             "먹보유령이 8칸 뒤로 물러납니다."
         )
         show_binbou_effect(result_msg, 0, "escaped")
@@ -1443,7 +1453,7 @@ def resolve_ghost_minigame(choice_index):
         reset_binbou_after_catch(distance=8)
     else:
         result_msg = (
-            f"😵 {choice_index + 1}번에서 출발해 {end_index + 1}번 끝점 도착! 먹보유령에게 잡혔어요! 점수 -{penalty}점! "
+            f"😵 {choice_index + 1}번 선로를 따라가니 {end_index + 1}번 끝점의 👿 유령에게 도착했어요! 점수 -{penalty}점! "
             "먹보유령은 6칸 뒤에서 다시 따라옵니다."
         )
         show_binbou_effect(result_msg, penalty, "caught")
@@ -1970,9 +1980,9 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
         <div id="treasure-txt">보물상자 발견!</div>
       </div>
       <div id="ladder-overlay">
-        <div id="ladder-title">🪜 먹보유령 사다리 게임</div>
-        <div id="ladder-sub">선택한 출발점에서 실제 사다리를 따라 내려갑니다!</div>
-        <svg id="ladder-svg" viewBox="0 0 440 430" aria-label="먹보유령 사다리 게임 애니메이션"></svg>
+        <div id="ladder-title">🛤️ 먹보유령 선로 탈출 퍼즐</div>
+        <div id="ladder-sub">선택한 출발점에서 🚪 탈출구까지 경로를 확인합니다!</div>
+        <svg id="ladder-svg" viewBox="0 0 440 430" aria-label="먹보유령 선로 탈출 퍼즐 애니메이션"></svg>
         <div id="ladder-result"></div>
       </div>
       <div id="ghost-overlay">
@@ -2259,12 +2269,14 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     }});
 
     const bottomGroups=[];
+    const visibleOutcomes=effect.bottom_outcomes||[];
     xs.forEach((x,i)=>{{
-      const g=add('g',{{opacity:.18}});
+      const escaped=visibleOutcomes[i]==='escape';
+      const g=add('g',{{opacity:1}});
       const circle=document.createElementNS(ns,'circle');
-      circle.setAttribute('cx',x);circle.setAttribute('cy',383);circle.setAttribute('r',25);circle.setAttribute('fill','#4a3467');circle.setAttribute('stroke','#a58acb');circle.setAttribute('stroke-width','2');g.appendChild(circle);
+      circle.setAttribute('cx',x);circle.setAttribute('cy',383);circle.setAttribute('r',25);circle.setAttribute('fill',escaped?'#1f8f69':'#8a3155');circle.setAttribute('stroke',escaped?'#7dffd4':'#ff92b6');circle.setAttribute('stroke-width','2');g.appendChild(circle);
       const txt=document.createElementNS(ns,'text');
-      txt.setAttribute('x',x);txt.setAttribute('y',389);txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#fff');txt.setAttribute('font-size','20');txt.textContent='?';g.appendChild(txt);
+      txt.setAttribute('x',x);txt.setAttribute('y',390);txt.setAttribute('text-anchor','middle');txt.setAttribute('fill','#fff');txt.setAttribute('font-size','20');txt.textContent=escaped?'🚪':'👿';g.appendChild(txt);
       ladderSvg.appendChild(g);bottomGroups.push(g);
     }});
 
@@ -2507,8 +2519,8 @@ with st.sidebar:
 
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
-        st.subheader("👿 지금 할 일: 사다리 선택")
-        st.warning("🪜 4개의 사다리 중 하나를 골라 주세요! 2개는 탈출, 2개는 먹보유령에게 잡힙니다.")
+        st.subheader("👿 지금 할 일: 탈출 선로 찾기")
+        st.warning("🛤️ 선로를 눈으로 따라가서 아래 🚪 탈출구와 이어지는 위쪽 번호를 골라 주세요.")
         if game:
             render_ladder_preview(game)
             ladder_cols = st.columns(4)
@@ -2522,7 +2534,7 @@ with st.sidebar:
                     ):
                         resolve_ghost_minigame(ladder_idx)
                         st.rerun()
-        st.caption("🎯 성공 확률 50%! 탈출하면 감점 없이 먹보유령이 8칸 뒤로 물러납니다.")
+        st.caption("🎯 운 요소 없음: 경로를 정확히 추리하면 반드시 탈출합니다. 성공하면 먹보유령이 8칸 뒤로 물러납니다.")
 
     elif phase == "treasure_minigame":
         game = st.session_state.get("treasure_game")
@@ -2907,7 +2919,7 @@ with st.sidebar:
             st.markdown("""
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
-- 👿 먹보유령에게 잡히면 4개 사다리 중 하나를 선택! 2개는 탈출, 2개는 잡힘
+- 👿 먹보유령을 만나면 공개된 선로를 눈으로 따라 🚪 탈출구로 이어지는 출발 번호를 찾기
 - 🎁 주황색 보물상자 칸에서는 역마다 다른 퍼즐 미니게임 도전 (성공해야 점수 획득)
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
 - 🃏 아이템 카드를 전략적으로 활용!
