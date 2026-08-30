@@ -304,7 +304,7 @@ TREASURE_GAME_TYPES = [
 TREASURE_GAME_LABELS = {
     "car_sort": "객차 순서 맞추기",
     "switch_route": "선로 스위치 연결",
-    "signal_grid": "신호등 불빛 퍼즐",
+    "signal_grid": "신호등 색 맞추기",
     "track_rotate": "선로 타일 회전",
     "memory_pairs": "철도 카드 짝맞추기",
     "maze": "미니 선로 미로",
@@ -324,31 +324,13 @@ def _shuffle_until_changed(values):
     return shuffled
 
 
-def _signal_neighbors(index, rows=2, cols=3):
-    r, c = divmod(index, cols)
-    out = [index]
-    for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-        rr, cc = r + dr, c + dc
-        if 0 <= rr < rows and 0 <= cc < cols:
-            out.append(rr * cols + cc)
-    return out
-
-
-def _apply_signal_press(state, index):
-    state = list(state)
-    for j in _signal_neighbors(index):
-        state[j] = 0 if state[j] else 1
-    return state
-
-
-def _make_solvable_signal_state(goal):
-    """목표 상태에서 실제 버튼 조작을 여러 번 적용해 항상 풀 수 있는 시작 상태를 만듭니다."""
+def _make_easy_signal_state(goal, color_count=3):
+    """목표 신호에서 3~5칸만 다른 색으로 바꿔 쉬운 색 맞추기 시작 상태를 만듭니다."""
     state = list(goal)
-    presses = random.sample(range(6), k=random.randint(2, 5))
-    for i in presses:
-        state = _apply_signal_press(state, i)
-    if state == list(goal):
-        state = _apply_signal_press(state, random.randrange(6))
+    change_count = random.randint(3, 5)
+    for i in random.sample(range(len(state)), k=change_count):
+        # 목표와 반드시 다른 색이 되도록 1칸 또는 2칸 앞으로 돌립니다.
+        state[i] = (int(goal[i]) + random.choice([1, 2])) % color_count
     return state
 
 
@@ -416,18 +398,22 @@ def build_treasure_puzzle(station_name, game_type=None):
         }
 
     if game_type == "signal_grid":
-        goal = [random.choice([0, 1]) for _ in range(6)]
-        if sum(goal) in (0, 6):
-            goal[random.randrange(6)] = 1 - goal[random.randrange(6)]
+        # 어려운 Lights Out 방식 대신, 누른 칸 하나만 색이 바뀌는 쉬운 시각 퍼즐입니다.
+        colors = ["🔴", "🟡", "🟢"]
+        goal = [random.randrange(len(colors)) for _ in range(6)]
         return {
             "game_type": game_type,
-            "title": "🚦 신호등 불빛 퍼즐",
+            "title": "🚦 신호등 색 맞추기",
             "icon": "🚦",
-            "prompt": "불빛을 누르면 **그 칸과 위·아래·왼쪽·오른쪽 칸이 함께 반전**됩니다. 목표 신호와 똑같이 만들어 보세요.",
-            "state": _make_solvable_signal_state(goal),
+            "prompt": (
+                "위의 **목표 신호**와 아래의 **현재 신호**가 똑같아지도록 불빛을 눌러 보세요. "
+                "한 칸을 누르면 **그 칸만** 🔴 → 🟡 → 🟢 → 🔴 순서로 바뀝니다."
+            ),
+            "state": _make_easy_signal_state(goal, len(colors)),
             "goal": goal,
+            "colors": colors,
             "max_attempts": 3,
-            "hint": "한 번 누른 칸은 주변 불빛도 바뀝니다. 목표와 다른 칸을 중심으로 시험해 보세요.",
+            "hint": "목표와 색이 다른 칸만 하나씩 눌러 보세요. 다른 칸의 색은 함께 바뀌지 않습니다.",
         }
 
     if game_type == "track_rotate":
@@ -1273,7 +1259,8 @@ def treasure_puzzle_action(action, index=None):
 
     if kind == "signal_grid":
         i = int(index)
-        puzzle["state"] = _apply_signal_press(puzzle["state"], i)
+        colors = puzzle.get("colors", ["🔴", "🟡", "🟢"])
+        puzzle["state"][i] = (int(puzzle["state"][i]) + 1) % len(colors)
         return
 
     if kind == "track_rotate":
@@ -2985,31 +2972,34 @@ with st.sidebar:
                 if st.button("🚦 선로 연결 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
                     check_treasure_minigame(); st.rerun()
 
-            # 3) 불빛 토글 퍼즐
+            # 3) 쉬운 신호등 색 맞추기 퍼즐
             elif kind == "signal_grid":
                 goal = puzzle.get("goal", [])
                 state = puzzle.get("state", [])
-                st.markdown("**목표 신호**")
+                colors = puzzle.get("colors", ["🔴", "🟡", "🟢"])
+                st.markdown("**목표 신호 — 이 모양과 같게 만드세요**")
                 for r in range(2):
                     cols = st.columns(3)
                     for c, col in enumerate(cols):
+                        idx = r * 3 + c
                         with col:
                             st.markdown(
-                                f"<div style='text-align:center;font-size:28px'>{'🟡' if goal[r*3+c] else '⚫'}</div>",
+                                f"<div style='text-align:center;font-size:30px;padding:4px'>{colors[int(goal[idx])]}</div>",
                                 unsafe_allow_html=True,
                             )
-                st.markdown("**현재 신호 — 불빛을 눌러 바꾸세요**")
+                st.markdown("**현재 신호 — 색이 다른 칸만 눌러 보세요**")
                 for r in range(2):
                     cols = st.columns(3)
                     for c, col in enumerate(cols):
                         idx = r * 3 + c
                         with col:
                             if st.button(
-                                "🟡" if state[idx] else "⚫",
+                                colors[int(state[idx])],
                                 key=f"light_{game['id']}_{idx}_{state[idx]}",
                                 use_container_width=True,
                             ):
                                 treasure_puzzle_action("press", idx); st.rerun()
+                st.caption("💡 한 칸을 누르면 그 칸만 🔴 → 🟡 → 🟢 → 🔴 순서로 바뀝니다.")
                 if st.button("✅ 신호 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
                     check_treasure_minigame(); st.rerun()
 
