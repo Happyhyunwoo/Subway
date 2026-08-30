@@ -354,6 +354,19 @@ TREASURE_GAME_LABELS = {
     "sliding_tiles": "숫자 선로 연결",
 }
 
+# 미니 선로 미로는 기존 4×4 단일 구조보다 조금 더 생각이 필요하도록
+# 5×5의 여러 고정 배치 중 하나를 무작위로 사용합니다.
+# 각 배치는 시작점 (0,0)에서 보물 (4,4)까지 반드시 도달할 수 있으며,
+# 갈림길과 막다른 길이 일부 포함되어 있습니다.
+TREASURE_MAZE_LAYOUTS = [
+    {(1, 1), (1, 2), (1, 4), (2, 0), (2, 4), (3, 2), (3, 3), (4, 0)},
+    {(1, 2), (2, 1), (2, 4), (3, 0), (3, 3), (3, 4), (4, 0)},
+    {(1, 0), (1, 2), (2, 3), (2, 4), (3, 1), (3, 2), (3, 3)},
+    {(0, 4), (1, 0), (1, 1), (2, 0), (2, 3), (3, 2), (3, 4)},
+    {(0, 1), (1, 1), (1, 3), (2, 3), (3, 1), (3, 3), (4, 2)},
+    {(1, 0), (1, 3), (2, 1), (2, 2), (3, 1), (3, 4)},
+]
+
 
 def _shuffle_until_changed(values):
     values = list(values)
@@ -477,18 +490,22 @@ def build_treasure_puzzle(station_name, game_type=None):
         }
 
     if game_type == "maze":
-        walls = {(0, 1), (1, 1), (2, 3)}
+        walls = set(random.choice(TREASURE_MAZE_LAYOUTS))
         return {
             "game_type": game_type,
             "title": "🧭 미니 선로 미로",
             "icon": "🧭",
-            "prompt": "화살표 버튼으로 열차를 움직여 벽(⬛)을 피해 보물(🎁)까지 도착하세요.",
-            "rows": 4,
-            "cols": 4,
+            "prompt": (
+                "화살표 버튼으로 열차를 움직여 벽(⬛)과 막다른 길을 피해 보물(🎁)까지 도착하세요. "
+                "이번에는 **5×5 미로**라서 길을 한 번 더 살펴봐야 해요."
+            ),
+            "rows": 5,
+            "cols": 5,
             "walls": [list(p) for p in sorted(walls)],
             "position": [0, 0],
-            "goal": [3, 3],
-            "hint": "막힌 길을 만나면 다른 방향으로 돌아가세요.",
+            "goal": [4, 4],
+            "moves": 0,
+            "hint": "바로 보물 쪽으로만 가지 말고, 막히면 열린 통로를 따라 한 번 돌아가 보세요.",
         }
 
     if game_type == "cargo_balance":
@@ -1403,8 +1420,9 @@ def treasure_puzzle_action(action, index=None):
         }.get(action, (0, 0))
         rr, cc = r + delta[0], c + delta[1]
         walls = {tuple(v) for v in puzzle.get("walls", [])}
-        if 0 <= rr < int(puzzle.get("rows", 4)) and 0 <= cc < int(puzzle.get("cols", 4)) and (rr, cc) not in walls:
+        if 0 <= rr < int(puzzle.get("rows", 5)) and 0 <= cc < int(puzzle.get("cols", 5)) and (rr, cc) not in walls:
             puzzle["position"] = [rr, cc]
+            puzzle["moves"] = int(puzzle.get("moves", 0)) + 1
         if puzzle.get("position") == puzzle.get("goal"):
             complete_treasure_minigame()
         return
@@ -3225,10 +3243,10 @@ with st.sidebar:
 
             # 6) 미니 선로 미로
             elif kind == "maze":
-                rows, cols_n = int(puzzle.get("rows", 4)), int(puzzle.get("cols", 4))
+                rows, cols_n = int(puzzle.get("rows", 5)), int(puzzle.get("cols", 5))
                 walls = {tuple(v) for v in puzzle.get("walls", [])}
                 pos = tuple(puzzle.get("position", [0, 0]))
-                goal = tuple(puzzle.get("goal", [3, 3]))
+                goal = tuple(puzzle.get("goal", [4, 4]))
                 grid_lines = []
                 for r in range(rows):
                     row = []
@@ -3244,6 +3262,7 @@ with st.sidebar:
                             row.append("⬜")
                     grid_lines.append(" ".join(row))
                 st.markdown("### " + "  \n### ".join(grid_lines))
+                st.caption(f"🚂 이동 횟수: {int(puzzle.get('moves', 0))}회 · 🎁 보물까지 길을 찾아보세요!")
                 _, up_col, _ = st.columns(3)
                 with up_col:
                     if st.button("⬆️", key=f"maze_up_{game['id']}", use_container_width=True):
