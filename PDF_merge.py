@@ -218,17 +218,51 @@ TRAIN_TYPES = {
 }
 
 
-def get_train_choice_from_query():
-    """사진 카드 클릭으로 전달된 열차 선택 값을 읽습니다."""
+def get_query_value(name):
+    """Streamlit 버전에 관계없이 URL 쿼리 파라미터 하나를 문자열로 읽습니다."""
     try:
-        value = st.query_params.get("train")
+        value = st.query_params.get(name)
     except Exception:
         try:
-            value = st.experimental_get_query_params().get("train")
+            value = st.experimental_get_query_params().get(name)
         except Exception:
             value = None
     if isinstance(value, list):
         value = value[-1] if value else None
+    return str(value) if value not in (None, "") else None
+
+
+def set_query_values(**values):
+    """기존 URL 값을 지우지 않고 필요한 쿼리 파라미터만 갱신합니다."""
+    try:
+        for key, value in values.items():
+            if value in (None, ""):
+                try:
+                    del st.query_params[key]
+                except Exception:
+                    pass
+            else:
+                st.query_params[key] = str(value)
+        return
+    except Exception:
+        pass
+
+    # 구형 Streamlit 호환 경로
+    try:
+        current = st.experimental_get_query_params()
+        for key, value in values.items():
+            if value in (None, ""):
+                current.pop(key, None)
+            else:
+                current[key] = str(value)
+        st.experimental_set_query_params(**current)
+    except Exception:
+        pass
+
+
+def get_train_choice_from_query():
+    """사진 카드 클릭으로 전달된 열차 선택 값을 읽습니다."""
+    value = get_query_value("train")
     return normalize_train_key(value) if value else None
 
 
@@ -254,7 +288,14 @@ def render_train_choice_gallery(selected_train: str, enabled: bool = True) -> st
             f"</div></div>"
         )
         if enabled:
-            href = f"?train={quote(key)}"
+            # 열차 사진을 다시 눌러도 새로고침 간 퀴즈 기록 쿼리 파라미터를 보존합니다.
+            preserved = []
+            for qp_key in ("qu", "qr"):
+                qp_value = get_query_value(qp_key)
+                if qp_value:
+                    preserved.append(f"{qp_key}={quote(qp_value)}")
+            suffix = ("&" + "&".join(preserved)) if preserved else ""
+            href = f"?train={quote(key)}{suffix}"
             card = (
                 f"<a href='{href}' target='_self' aria-label='{key} 선택' "
                 "style='display:block;text-decoration:none;color:inherit;margin:7px 0;'>"
@@ -310,7 +351,7 @@ TREASURE_GAME_LABELS = {
     "maze": "미니 선로 미로",
     "cargo_balance": "화물 균형 맞추기",
     "mastermind": "색깔 객차 순서 맞추기",
-    "sliding_tiles": "숫자 타일 슬라이딩",
+    "sliding_tiles": "숫자 선로 연결",
 }
 
 
@@ -334,26 +375,13 @@ def _make_easy_signal_state(goal, color_count=3):
     return state
 
 
-def _make_sliding_start():
-    """2×3 슬라이딩 퍼즐을 정답 상태에서 합법적인 이동만 수행해 섞습니다."""
-    board = [1, 2, 3, 4, 5, 0]
-    blank = 5
-    previous = None
-    for _ in range(18):
-        r, c = divmod(blank, 3)
-        neighbors = []
-        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-            rr, cc = r + dr, c + dc
-            if 0 <= rr < 2 and 0 <= cc < 3:
-                idx = rr * 3 + cc
-                if idx != previous:
-                    neighbors.append(idx)
-        nxt = random.choice(neighbors)
-        board[blank], board[nxt] = board[nxt], board[blank]
-        previous, blank = blank, nxt
-    if board == [1, 2, 3, 4, 5, 0]:
-        board[4], board[5] = board[5], board[4]
-    return board
+def _make_number_path_start():
+    """1~6 숫자를 화면 위치만 섞어, 순서대로 누르는 쉬운 숫자 연결 퍼즐을 만듭니다."""
+    tiles = [1, 2, 3, 4, 5, 6]
+    random.shuffle(tiles)
+    if tiles == [1, 2, 3, 4, 5, 6]:
+        tiles[0], tiles[1] = tiles[1], tiles[0]
+    return tiles
 
 
 def build_treasure_puzzle(station_name, game_type=None):
@@ -500,15 +528,21 @@ def build_treasure_puzzle(station_name, game_type=None):
             "hint": "목표의 첫 번째 색부터 비교해 보세요. 이웃한 두 객차만 서로 자리를 바꿀 수 있습니다.",
         }
 
-    # sliding_tiles
+    # sliding_tiles라는 내부 키는 이전 세션과의 호환을 위해 유지하지만,
+    # 실제 게임은 쉬운 "숫자 선로 연결" 활동으로 바꿉니다.
     return {
         "game_type": "sliding_tiles",
-        "title": "🔢 숫자 타일 슬라이딩",
+        "title": "🔢 숫자 선로 연결",
         "icon": "🔢",
-        "prompt": "빈칸 옆의 숫자 타일을 눌러 움직이고 **1·2·3 / 4·5·빈칸** 순서로 맞춰 보세요.",
-        "state": _make_sliding_start(),
-        "goal": [1, 2, 3, 4, 5, 0],
-        "hint": "빈칸과 상하좌우로 붙어 있는 타일만 움직일 수 있습니다.",
+        "prompt": (
+            "섞여 있는 숫자 칸에서 **1 → 2 → 3 → 4 → 5 → 6** 순서로 눌러 "
+            "기차 선로를 완성해 보세요. 맞게 누른 숫자는 초록색으로 표시됩니다."
+        ),
+        "state": _make_number_path_start(),
+        "next_number": 1,
+        "completed_numbers": [],
+        "last_wrong": None,
+        "hint": "가장 작은 숫자 1부터 시작해 하나씩 큰 숫자를 누르면 됩니다.",
     }
 
 
@@ -920,23 +954,82 @@ def selected_categories():
     return cats or QUIZ_CATEGORIES
 
 
-QUIZ_RECENT_MEMORY = 15
+QUIZ_RECENT_MEMORY = 20
+QUIZ_USED_QUERY_KEY = "qu"
+QUIZ_RECENT_QUERY_KEY = "qr"
+
+
+def _read_persistent_quiz_state():
+    """URL에서 이미 출제한 문제와 최근 문제를 복원합니다.
+
+    Streamlit session_state는 브라우저 새로고침 때 새 세션으로 바뀔 수 있으므로,
+    150개 문제의 사용 여부를 작은 16진수 비트마스크로 URL에 함께 저장합니다.
+    """
+    used = set()
+    raw_used = get_query_value(QUIZ_USED_QUERY_KEY)
+    if raw_used:
+        try:
+            mask = int(raw_used, 16)
+            used = {i for i in range(len(QUIZZES)) if (mask >> i) & 1}
+        except (TypeError, ValueError):
+            used = set()
+
+    recent = []
+    raw_recent = get_query_value(QUIZ_RECENT_QUERY_KEY)
+    if raw_recent:
+        for token in raw_recent.split("."):
+            try:
+                idx = int(token)
+            except ValueError:
+                continue
+            if 0 <= idx < len(QUIZZES) and idx not in recent:
+                recent.append(idx)
+    return used, recent[-QUIZ_RECENT_MEMORY:]
+
+
+def _write_persistent_quiz_state():
+    """현재 퀴즈 사용 기록을 URL에 저장해 새로고침 뒤에도 유지합니다."""
+    used = {
+        int(i) for i in st.session_state.get("quiz_used_indices", [])
+        if isinstance(i, int) and 0 <= int(i) < len(QUIZZES)
+    }
+    mask = 0
+    for idx in used:
+        mask |= 1 << idx
+    recent = [
+        int(i) for i in st.session_state.get("quiz_recent_indices", [])
+        if isinstance(i, int) and 0 <= int(i) < len(QUIZZES)
+    ][-QUIZ_RECENT_MEMORY:]
+    set_query_values(
+        **{
+            QUIZ_USED_QUERY_KEY: format(mask, "x") if mask else None,
+            QUIZ_RECENT_QUERY_KEY: ".".join(map(str, recent)) if recent else None,
+        }
+    )
 
 
 def ensure_quiz_rotation_state():
-    """게임 재시작과 무관하게 유지되는 퀴즈 셔플 덱 상태를 준비합니다."""
+    """게임 재시작과 브라우저 새로고침에도 이어지는 퀴즈 덱 상태를 준비합니다."""
     if "quiz_decks" not in st.session_state or not isinstance(st.session_state.quiz_decks, dict):
         st.session_state.quiz_decks = {}
     if "quiz_category_cycle" not in st.session_state or not isinstance(st.session_state.quiz_category_cycle, list):
         st.session_state.quiz_category_cycle = []
-    if "quiz_recent_indices" not in st.session_state or not isinstance(st.session_state.quiz_recent_indices, list):
-        st.session_state.quiz_recent_indices = []
 
-    # 코드 업데이트로 문제 수/카테고리가 바뀐 경우 오래된 세션 덱을 안전하게 정리합니다.
+    # 새 세션이면 URL에 저장된 사용 기록을 먼저 복원합니다.
+    if "quiz_used_indices" not in st.session_state:
+        persisted_used, persisted_recent = _read_persistent_quiz_state()
+        st.session_state.quiz_used_indices = sorted(persisted_used)
+        st.session_state.quiz_recent_indices = persisted_recent
+    elif "quiz_recent_indices" not in st.session_state or not isinstance(st.session_state.quiz_recent_indices, list):
+        _, persisted_recent = _read_persistent_quiz_state()
+        st.session_state.quiz_recent_indices = persisted_recent
+
     valid_by_category = {
         cat: {i for i, q in enumerate(QUIZZES) if q["category"] == cat}
         for cat in QUIZ_CATEGORIES
     }
+
+    # 코드 업데이트로 문제 수/카테고리가 바뀐 경우 오래된 세션 덱을 안전하게 정리합니다.
     cleaned = {}
     for cat, deck in st.session_state.quiz_decks.items():
         if cat not in valid_by_category or not isinstance(deck, list):
@@ -945,6 +1038,11 @@ def ensure_quiz_rotation_state():
         if all(isinstance(i, int) and i in valid for i in deck) and len(deck) == len(set(deck)):
             cleaned[cat] = deck
     st.session_state.quiz_decks = cleaned
+
+    st.session_state.quiz_used_indices = sorted({
+        i for i in st.session_state.quiz_used_indices
+        if isinstance(i, int) and 0 <= i < len(QUIZZES)
+    })
     st.session_state.quiz_recent_indices = [
         i for i in st.session_state.quiz_recent_indices
         if isinstance(i, int) and 0 <= i < len(QUIZZES)
@@ -952,18 +1050,29 @@ def ensure_quiz_rotation_state():
 
 
 def refill_quiz_deck(category):
-    """한 카테고리의 모든 문제를 섞어 새 덱을 만듭니다. 최근 문제는 뒤쪽에 둡니다."""
+    """해당 영역에서 아직 안 나온 문제만 섞습니다. 30개 소진 후에만 새 순환을 시작합니다."""
     indices = [i for i, q in enumerate(QUIZZES) if q["category"] == category]
     if not indices:
         return []
 
+    used = set(st.session_state.quiz_used_indices)
+    unused = [i for i in indices if i not in used]
+
+    # 이 카테고리의 30문제를 모두 본 경우에만 해당 영역의 사용 표시를 지웁니다.
+    if not unused:
+        category_set = set(indices)
+        used -= category_set
+        st.session_state.quiz_used_indices = sorted(used)
+        unused = indices[:]
+        _write_persistent_quiz_state()
+
     recent = set(st.session_state.quiz_recent_indices)
-    fresh = [i for i in indices if i not in recent]
-    delayed = [i for i in indices if i in recent]
+    fresh = [i for i in unused if i not in recent]
+    delayed = [i for i in unused if i in recent]
     random.shuffle(fresh)
     random.shuffle(delayed)
 
-    # 직전에 본 문제들은 새 덱의 뒤쪽으로 보내 재순환 직후의 반복을 방지합니다.
+    # 새 순환을 시작하더라도 방금 본 문제는 가능한 한 뒤쪽으로 보냅니다.
     deck = fresh + delayed
     st.session_state.quiz_decks[category] = deck
     return deck
@@ -976,8 +1085,6 @@ def next_quiz_category(categories):
         selected = QUIZ_CATEGORIES[:]
 
     cycle = [c for c in st.session_state.quiz_category_cycle if c in selected]
-
-    # 현재 사이클에 아직 들어오지 않은 새 선택 카테고리를 추가합니다.
     missing = [c for c in selected if c not in cycle]
     random.shuffle(missing)
     cycle.extend(missing)
@@ -992,30 +1099,39 @@ def next_quiz_category(categories):
 
 
 def get_random_quiz():
-    """카테고리 균형 + 카테고리별 비복원 셔플 덱 방식으로 다음 퀴즈를 반환합니다."""
+    """영역 균형 + 비복원 덱 + 새로고침 지속 기록으로 다음 퀴즈를 반환합니다."""
     ensure_quiz_rotation_state()
     categories = selected_categories()
     category = next_quiz_category(categories)
 
-    deck = st.session_state.quiz_decks.get(category, [])
+    # 세션에 남은 덱이 있더라도 이미 URL 사용 기록에 들어간 문제는 제거합니다.
+    used = set(st.session_state.quiz_used_indices)
+    deck = [i for i in st.session_state.quiz_decks.get(category, []) if i not in used]
     if not deck:
         deck = refill_quiz_deck(category)
 
-    # 혹시 선택 카테고리에 문제가 하나도 없는 비정상 상태라면 전체 문제에서 안전하게 선택합니다.
     if not deck:
-        fallback = [i for i, q in enumerate(QUIZZES) if q["category"] in categories]
+        fallback = [i for i, q in enumerate(QUIZZES) if q["category"] in categories and i not in used]
+        if not fallback:
+            fallback = [i for i, q in enumerate(QUIZZES) if q["category"] in categories]
         if not fallback:
             fallback = list(range(len(QUIZZES)))
         random.shuffle(fallback)
         deck = fallback
 
     idx = deck.pop(0)
-    if category in st.session_state.quiz_decks:
-        st.session_state.quiz_decks[category] = deck
+    st.session_state.quiz_decks[category] = deck
 
-    recent = st.session_state.quiz_recent_indices
+    used = set(st.session_state.quiz_used_indices)
+    used.add(idx)
+    st.session_state.quiz_used_indices = sorted(used)
+
+    recent = list(st.session_state.quiz_recent_indices)
+    if idx in recent:
+        recent.remove(idx)
     recent.append(idx)
     st.session_state.quiz_recent_indices = recent[-QUIZ_RECENT_MEMORY:]
+    _write_persistent_quiz_state()
 
     quiz = QUIZZES[idx].copy()
     quiz["quiz_id"] = idx
@@ -1307,17 +1423,28 @@ def treasure_puzzle_action(action, index=None):
         return
 
     if kind == "sliding_tiles":
+        # 쉬운 숫자 선로 연결: 화면의 숫자 위치와 관계없이 1→6 순서로 누릅니다.
         i = int(index)
-        board = puzzle["state"]
-        if i < 0 or i >= len(board) or board[i] == 0:
+        tiles = puzzle.get("state", [])
+        if i < 0 or i >= len(tiles):
             return
-        blank = board.index(0)
-        r1, c1 = divmod(i, 3)
-        r2, c2 = divmod(blank, 3)
-        if abs(r1 - r2) + abs(c1 - c2) == 1:
-            board[i], board[blank] = board[blank], board[i]
-        if board == puzzle.get("goal"):
-            complete_treasure_minigame()
+        value = int(tiles[i])
+        expected = int(puzzle.get("next_number", 1))
+        completed = puzzle.setdefault("completed_numbers", [])
+
+        if value < expected:
+            # 이미 맞힌 숫자는 다시 눌러도 아무 일도 일어나지 않습니다.
+            return
+        if value == expected:
+            if value not in completed:
+                completed.append(value)
+            puzzle["last_wrong"] = None
+            puzzle["next_number"] = expected + 1
+            if expected >= 6:
+                complete_treasure_minigame()
+        else:
+            # 틀려도 점수 감점이나 초기화 없이, 다음에 눌러야 할 숫자만 알려 줍니다.
+            puzzle["last_wrong"] = value
         return
 
 
@@ -3194,25 +3321,46 @@ with st.sidebar:
                 ):
                     check_treasure_minigame(); st.rerun()
 
-            # 9) 숫자 타일 슬라이딩
+            # 9) 숫자 선로 연결 — 1부터 6까지 순서대로 누르는 쉬운 퍼즐
             elif kind == "sliding_tiles":
-                board = puzzle.get("state", [])
+                tiles = puzzle.get("state", [])
+                completed = set(puzzle.get("completed_numbers", []))
+                next_number = int(puzzle.get("next_number", 1))
+
+                progress = "  →  ".join(
+                    f"✅ {n}" if n in completed else f"⬜ {n}"
+                    for n in range(1, 7)
+                )
+                st.markdown(f"**선로 진행:** {progress}")
+                if puzzle.get("last_wrong") is not None:
+                    st.warning(f"지금은 **{next_number}**을 눌러야 해요!")
+                else:
+                    st.caption(f"다음 숫자: {min(next_number, 6)}")
+
                 for r in range(2):
                     cols = st.columns(3)
                     for c, col in enumerate(cols):
                         idx = r * 3 + c
-                        value = board[idx]
+                        if idx >= len(tiles):
+                            continue
+                        value = int(tiles[idx])
                         with col:
-                            if value == 0:
-                                st.button("　", key=f"slide_blank_{game['id']}_{idx}", disabled=True, use_container_width=True)
+                            if value in completed:
+                                st.button(
+                                    f"✅ {value}",
+                                    key=f"number_path_done_{game['id']}_{idx}_{value}",
+                                    disabled=True,
+                                    use_container_width=True,
+                                )
                             else:
                                 if st.button(
-                                    str(value),
-                                    key=f"slide_{game['id']}_{idx}_{value}",
+                                    f"{value}",
+                                    key=f"number_path_{game['id']}_{idx}_{value}_{next_number}",
                                     use_container_width=True,
+                                    type="primary" if value == next_number else "secondary",
                                 ):
-                                    treasure_puzzle_action("slide", idx); st.rerun()
-                st.caption("목표: 1 · 2 · 3 / 4 · 5 · 빈칸")
+                                    treasure_puzzle_action("number_path", idx); st.rerun()
+                st.caption("목표: 숫자의 위치는 상관없이 1 → 2 → 3 → 4 → 5 → 6 순서로 누르세요.")
 
     elif phase == "waiting_penalty_roll":
         st.subheader("😱 지금 할 일: 뒤로 가기")
