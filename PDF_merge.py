@@ -1369,9 +1369,12 @@ GHOST_MAZE_PUZZLES = [
 
 
 def build_ghost_maze_puzzle(puzzle_index):
-    """눈으로 안전한 길을 찾아 직접 움직이는 미로 퍼즐을 반환합니다."""
+    """고정된 벽 안에서 플레이어와 먹보유령이 함께 움직이는 추격 미로를 반환합니다."""
     idx = int(puzzle_index) % len(GHOST_MAZE_PUZZLES)
     spec = GHOST_MAZE_PUZZLES[idx]
+    # 기존 미로의 벽 배치는 그대로 사용합니다. 세 개의 위험 칸 대신 첫 번째 위치를
+    # 움직이는 먹보유령의 시작점으로 사용해, 추격 규칙을 눈으로 예측할 수 있게 합니다.
+    ghost_start = list(spec.get("ghost", (spec.get("ghosts") or [[0, 0]])[0]))
     return {
         "maze_index": idx,
         "maze_name": spec["name"],
@@ -1380,21 +1383,24 @@ def build_ghost_maze_puzzle(puzzle_index):
         "start": list(spec["start"]),
         "exit": list(spec["exit"]),
         "walls": [list(x) for x in spec["walls"]],
-        "ghosts": [list(x) for x in spec["ghosts"]],
+        "ghost": ghost_start[:],
+        "ghost_start": ghost_start[:],
         "player": list(spec["start"]),
         "moves": 0,
-        "feedback": "",
+        "ghost_moves": 0,
+        "feedback": "🚄 한 칸 움직일 때마다 👿 먹보유령도 벽을 피해 한 칸 추격합니다.",
     }
 
 
 def render_ghost_maze_preview(game):
-    """벽·유령·탈출구가 모두 공개된 5×5 미로를 표시합니다."""
+    """고정 벽, 현재 열차, 움직이는 먹보유령, 탈출구를 잘림 없이 표시합니다."""
     if not game:
         return
     rows = int(game.get("rows", 5))
     cols = int(game.get("cols", 5))
     walls = {tuple(x) for x in game.get("walls", [])}
-    ghosts = {tuple(x) for x in game.get("ghosts", [])}
+    legacy_ghosts = game.get("ghosts", [])
+    ghost = tuple(game.get("ghost", legacy_ghosts[0] if legacy_ghosts else [0, cols - 1]))
     player = tuple(game.get("player", game.get("start", [rows - 1, 0])))
     start = tuple(game.get("start", player))
     exit_pos = tuple(game.get("exit", [0, cols - 1]))
@@ -1411,28 +1417,72 @@ def render_ghost_maze_preview(game):
                 bg, border, icon = "#4a4451", "#81798b", "🧱"
             elif pos == exit_pos:
                 bg, border, icon, label = "#124d3d", "#55d7ae", "🚪", "탈출"
-            elif pos in ghosts:
-                bg, border, icon, label = "#5e1737", "#ff79a5", "👿", "위험"
+            elif pos == ghost:
+                bg, border, icon, label = "#5e1737", "#ff79a5", "👿", "추격"
             elif pos == start:
                 bg, border, label = "#243f62", "#6fb5ff", "출발"
             if pos == player:
                 bg, border, icon, label = "#735b16", "#ffd166", "🚄", "현재"
             cells.append(
-                f"<div style='height:48px;border:2px solid {border};border-radius:8px;background:{bg};"
+                f"<div style='height:43px;border:2px solid {border};border-radius:8px;background:{bg};"
                 f"display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:0'>"
-                f"<div style='font-size:22px;line-height:23px'>{icon or '·'}</div>"
+                f"<div style='font-size:20px;line-height:21px'>{icon or '·'}</div>"
                 f"<div style='font-size:8px;color:#e9def7;font-weight:800;height:10px'>{label}</div></div>"
             )
 
+    moves = int(game.get("moves", 0))
+    ghost_moves = int(game.get("ghost_moves", 0))
     html = (
         "<div style=\"font-family:'Noto Sans KR',sans-serif;background:#16072a;border:1px solid #6741a8;"
-        "border-radius:12px;padding:9px;color:white\">"
-        "<div style='text-align:center;font-size:12px;font-weight:900;margin-bottom:3px'>🧭 먹보유령 미니 미로</div>"
-        "<div style='text-align:center;font-size:10px;color:#d5c8e9;margin-bottom:7px'>벽 🧱은 지나갈 수 없고, 👿 칸을 피해서 🚪까지 이동하세요.</div>"
-        f"<div style='display:grid;grid-template-columns:repeat({cols},minmax(0,1fr));gap:5px'>" + "".join(cells) + "</div>"
+        "border-radius:12px;padding:9px 9px 11px;color:white;box-sizing:border-box;overflow:visible\">"
+        "<div style='text-align:center;font-size:12px;font-weight:900;margin-bottom:3px'>🧭 먹보유령 추격 미로</div>"
+        "<div style='text-align:center;font-size:10px;line-height:1.35;color:#d5c8e9;margin-bottom:7px'>"
+        "벽 🧱은 그대로입니다. 내가 한 칸 움직이면 👿도 나를 향해 한 칸 움직입니다.</div>"
+        f"<div style='display:grid;grid-template-columns:repeat({cols},minmax(0,1fr));gap:4px'>" + "".join(cells) + "</div>"
+        f"<div style='margin-top:8px;text-align:center;font-size:9px;color:#cdbfe4'>🚄 {moves}칸 이동 · 👿 {ghost_moves}칸 추격 · 🚪 먼저 도착하면 탈출!</div>"
         "</div>"
     )
-    components.html(html, height=315, scrolling=False)
+    # 사이드바의 iframe 높이에 여유를 두어 마지막 행/하단 안내가 잘리지 않도록 합니다.
+    components.html(html, height=350, scrolling=False)
+
+
+def ghost_maze_next_step(game, ghost_pos, target_pos):
+    """먹보유령이 벽을 피해 플레이어까지의 최단 경로로 정확히 한 칸 이동합니다."""
+    rows = int(game.get("rows", 5))
+    cols = int(game.get("cols", 5))
+    walls = {tuple(x) for x in game.get("walls", [])}
+    ghost_pos = tuple(ghost_pos)
+    target_pos = tuple(target_pos)
+
+    if ghost_pos == target_pos:
+        return ghost_pos
+
+    # 동률일 때도 결과가 매번 같도록 고정 순서를 사용합니다. 즉, 유령 이동에는 랜덤이 없습니다.
+    directions = [(-1, 0), (0, -1), (1, 0), (0, 1)]  # 위 → 왼쪽 → 아래 → 오른쪽
+    queue = [ghost_pos]
+    previous = {ghost_pos: None}
+    head = 0
+    while head < len(queue):
+        current = queue[head]
+        head += 1
+        if current == target_pos:
+            break
+        for dr, dc in directions:
+            nxt = (current[0] + dr, current[1] + dc)
+            if not (0 <= nxt[0] < rows and 0 <= nxt[1] < cols):
+                continue
+            if nxt in walls or nxt in previous:
+                continue
+            previous[nxt] = current
+            queue.append(nxt)
+
+    if target_pos not in previous:
+        return ghost_pos
+
+    step = target_pos
+    while previous.get(step) is not None and previous[step] != ghost_pos:
+        step = previous[step]
+    return step if previous.get(step) == ghost_pos else ghost_pos
 
 
 def choose_ghost_game_type():
@@ -1466,13 +1516,13 @@ def begin_ghost_minigame(penalty, resume):
             "resume": resume,
             **maze,
         }
-        challenge_message = "👿 먹보유령 미니 미로! 벽과 유령을 눈으로 보고 안전한 길을 찾아 🚪 탈출구까지 이동하세요!"
+        challenge_message = "👿 먹보유령 추격 미로! 벽을 이용해 움직이는 유령을 피하면서 🚪 탈출구까지 이동하세요!"
         st.session_state.last_message = (
             resume.get("base_msg", "")
-            + "\n\n👿 **먹보유령 미니 미로!** 벽 🧱과 유령 👿의 위치가 모두 공개되어 있습니다. "
-              "방향 버튼으로 열차를 움직여 유령을 피하고 🚪 탈출구까지 가세요. 운 요소는 없습니다!"
+            + "\n\n👿 **먹보유령 추격 미로!** 벽 🧱은 움직이지 않지만, 열차가 한 칸 움직일 때마다 👿도 벽을 피해 한 칸 추격합니다. "
+              "유령의 현재 위치를 보면서 방향 버튼으로 피하고 🚪 탈출구에 먼저 도착하세요!"
         )
-        add_event_log("🧭 먹보유령 미니 미로 시작!")
+        add_event_log("🧭 먹보유령 추격 미로 시작!")
     else:
         puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
         rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
@@ -1642,7 +1692,7 @@ def resolve_ghost_minigame(choice_index):
 
 
 def resolve_ghost_maze_move(direction):
-    """미로에서 한 칸 이동하고 벽·유령·탈출구를 판정합니다."""
+    """플레이어가 한 칸 이동하면 먹보유령도 최단 경로로 한 칸 추격합니다."""
     game = st.session_state.get("ghost_game")
     if not game or game.get("game_type") != "maze":
         return
@@ -1657,37 +1707,59 @@ def resolve_ghost_maze_move(direction):
     dr, dc = deltas[direction]
     nr, nc = r + dr, c + dc
     walls = {tuple(x) for x in game.get("walls", [])}
-    ghosts = {tuple(x) for x in game.get("ghosts", [])}
+    legacy_ghosts = game.get("ghosts", [])
+    ghost_before = tuple(game.get("ghost", legacy_ghosts[0] if legacy_ghosts else [0, cols - 1]))
     exit_pos = tuple(game.get("exit", [0, cols - 1]))
 
+    # 벽이나 화면 밖을 누른 것은 실제 한 칸 이동으로 세지 않습니다. 따라서 유령도 움직이지 않습니다.
     if not (0 <= nr < rows and 0 <= nc < cols):
-        game["feedback"] = "🚧 미로 밖으로는 갈 수 없어요. 다른 방향을 찾아보세요."
+        game["feedback"] = "🚧 미로 밖으로는 갈 수 없어요. 이 시도에서는 👿도 움직이지 않습니다."
         return
     if (nr, nc) in walls:
-        game["feedback"] = "🧱 벽에 막혔어요. 화면을 보고 다른 길로 움직여 보세요."
+        game["feedback"] = "🧱 벽에 막혔어요. 이 시도에서는 👿도 움직이지 않습니다."
         return
 
     game["player"] = [nr, nc]
     game["moves"] = int(game.get("moves", 0)) + 1
-    game["feedback"] = ""
-
     penalty = int(game.get("penalty", 10))
-    if (nr, nc) in ghosts:
+
+    # 플레이어가 유령의 현재 칸으로 직접 들어가면 즉시 잡힙니다.
+    if (nr, nc) == ghost_before:
         result_msg = (
-            f"😵 미로에서 👿 먹보유령이 있는 칸으로 들어갔어요! 점수 -{penalty}점! "
+            f"😵 먹보유령이 기다리던 칸으로 들어갔어요! 점수 -{penalty}점! "
             "먹보유령은 6칸 뒤에서 다시 따라옵니다."
         )
         finish_ghost_puzzle(game, False, result_msg)
         return
 
+    # 탈출구에 먼저 들어간 순간 게임 종료. 도착한 뒤 유령에게 추가 턴을 주지 않습니다.
     if (nr, nc) == exit_pos:
         moves = int(game.get("moves", 0))
         result_msg = (
-            f"💨 {moves}번 움직여 🚪 탈출구에 도착! 미로 탈출 성공! "
+            f"💨 {moves}번 움직여 🚪 탈출구에 먼저 도착! 추격 미로 탈출 성공! "
             "먹보유령이 8칸 뒤로 물러납니다."
         )
         finish_ghost_puzzle(game, True, result_msg)
         return
+
+    # 유령은 랜덤 이동이 아니라 벽을 고려한 최단 경로로 딱 한 칸 추격합니다.
+    ghost_after = ghost_maze_next_step(game, ghost_before, (nr, nc))
+    game["ghost"] = list(ghost_after)
+    if ghost_after != ghost_before:
+        game["ghost_moves"] = int(game.get("ghost_moves", 0)) + 1
+
+    if ghost_after == (nr, nc):
+        result_msg = (
+            f"😵 한 칸 이동한 뒤 먹보유령이 바로 따라잡았어요! 점수 -{penalty}점! "
+            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+        )
+        finish_ghost_puzzle(game, False, result_msg)
+        return
+
+    game["feedback"] = (
+        "🚄 열차가 한 칸 이동했고 👿 먹보유령도 벽을 피해 한 칸 추격했습니다. "
+        "현재 위치를 보고 다음 방향을 선택하세요."
+    )
 
 
 def apply_square_event(station_name, pos):
@@ -2721,8 +2793,8 @@ with st.sidebar:
         game_type = game.get("game_type", "route") if game else "route"
 
         if game_type == "maze":
-            st.subheader("👿 지금 할 일: 미로 탈출")
-            st.warning("🧭 벽 🧱과 유령 👿을 피해서 열차를 🚪 탈출구까지 움직여 주세요.")
+            st.subheader("👿 지금 할 일: 추격 미로 탈출")
+            st.warning("🧭 벽 🧱을 이용해 추격하는 👿 먹보유령을 피하고, 열차를 🚪 탈출구까지 먼저 움직여 주세요.")
             if game:
                 render_ghost_maze_preview(game)
                 feedback = game.get("feedback", "")
@@ -2743,8 +2815,8 @@ with st.sidebar:
                 with right_c:
                     if st.button("➡️", key=f"ghost_maze_right_{game['id']}", use_container_width=True):
                         resolve_ghost_maze_move("right"); st.rerun()
-                st.caption(f"현재 이동 횟수: {int(game.get('moves', 0))}회 · 👿 칸에 들어가면 잡힙니다.")
-            st.caption("🎯 운 요소 없음: 미로를 눈으로 살펴 안전한 길을 찾으면 반드시 탈출할 수 있습니다.")
+                st.caption(f"현재 이동: {int(game.get('moves', 0))}회 · 유령 이동: {int(game.get('ghost_moves', 0))}회 · 벽에 막힌 시도에는 유령도 움직이지 않습니다.")
+            st.caption("🎯 유령은 랜덤으로 움직이지 않습니다. 벽을 피해 현재 열차까지의 최단 경로로 매번 한 칸 추격합니다.")
         else:
             st.subheader("👿 지금 할 일: 탈출 선로 찾기")
             st.warning("🛤️ 선로를 눈으로 따라가서 아래 🚪 탈출구와 이어지는 위쪽 번호를 골라 주세요.")
