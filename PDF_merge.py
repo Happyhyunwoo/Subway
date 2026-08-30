@@ -204,11 +204,12 @@ def render_train_preview_gallery(selected_train: str) -> str:
     return "<div style='display:flex;gap:8px;margin:6px 0 4px 0'>" + "".join(cards) + "</div>"
 
 SQUARE_TYPES = {
-    # 남겨 둔 특수 칸은 파란 칸과 보물상자 칸뿐입니다.
+    # 파란 칸과 보물상자 칸. 보물상자는 기존 5개 + 신규 4개 = 총 9개입니다.
     "홍대입구": "blue",  "강남": "blue",  "왕십리": "blue",
     "선릉":     "blue",  "시청": "blue",  "이대":   "blue",
-    "아현": "treasure", "문래": "treasure", "봉천": "treasure",
-    "역삼": "treasure", "잠실나루": "treasure",
+    "아현": "treasure", "을지로4가": "treasure", "문래": "treasure",
+    "당산": "treasure", "봉천": "treasure", "사당": "treasure",
+    "역삼": "treasure", "잠실나루": "treasure", "잠실": "treasure",
 }
 
 BLUE_EVENTS = [
@@ -220,13 +221,184 @@ BLUE_EVENTS = [
     {"msg": "🎶 축제! 점수 +15점 + 추가 주사위!", "score": 15, "extra_roll": True},
 ]
 
-TREASURE_EVENTS = [
-    {"msg": "💰 황금 동전 발견! 점수 +30점!", "score": 30},
-    {"msg": "🃏 반짝이는 아이템 카드 발견!", "random_item": True},
-    {"msg": "🧿 유령 밀어내기 부적! 먹보유령이 5칸 뒤로!", "push_binbou": 5},
-    {"msg": "⚡ 터보 티켓 발견! 다음 주사위 +3!", "bonus_dice": 3},
-    {"msg": "🌈 대박 보물! 점수 +20점 + 아이템 카드!", "score": 20, "random_item": True},
-]
+TREASURE_REWARD = 30
+TREASURE_RETRY_REWARD = 20
+TREASURE_MAX_ATTEMPTS = 2
+
+TREASURE_GAME_BY_STATION = {
+    "아현": "number_signal",
+    "을지로4가": "code_lock",
+    "문래": "odd_one_out",
+    "당산": "station_order",
+    "봉천": "word_scramble",
+    "사당": "switch_track",
+    "역삼": "pattern",
+    "잠실나루": "emoji_code",
+    "잠실": "ticket_math",
+}
+
+
+def make_choice_puzzle(title, prompt, correct, distractors, icon="🧩", hint=""):
+    """정답 위치가 매번 달라지는 객관식 퍼즐을 만듭니다."""
+    options = [correct] + list(distractors)
+    # 중복 선택지를 제거하면서 4개를 유지합니다.
+    deduped = []
+    for option in options:
+        if option not in deduped:
+            deduped.append(option)
+    options = deduped[:4]
+    random.shuffle(options)
+    return {
+        "title": title,
+        "icon": icon,
+        "prompt": prompt,
+        "input_type": "choice",
+        "options": options,
+        "answer": options.index(correct),
+        "hint": hint,
+    }
+
+
+def build_treasure_puzzle(station_name):
+    """보물상자 역마다 서로 다른 종류의 간단한 퍼즐을 생성합니다."""
+    game_type = TREASURE_GAME_BY_STATION.get(station_name, "number_signal")
+
+    if game_type == "number_signal":
+        start_num = random.randint(1, 4)
+        step = random.choice([2, 3, 4])
+        seq = [start_num + step * i for i in range(4)]
+        correct = seq[-1] + step
+        distractors = [correct - 1, correct + 1, correct + step]
+        return make_choice_puzzle(
+            "🚦 숫자 신호 퍼즐",
+            f"역무실 신호판에 **{' → '.join(map(str, seq))} → ?** 가 떴어요. 같은 규칙으로 다음 숫자는?",
+            str(correct),
+            [str(v) for v in distractors],
+            icon="🚦",
+            hint=f"앞 숫자에서 항상 같은 수만큼 커집니다. 차이는 {step}입니다.",
+        )
+
+    if game_type == "code_lock":
+        # 2호선 번호(2), 선로의 두 진행 방향(2), 신호등 기본색 3개(3)
+        return {
+            "title": "🔐 역무실 암호 자물쇠",
+            "icon": "🔐",
+            "prompt": (
+                "보물상자 자물쇠는 세 자리예요. 첫째 숫자는 **2호선의 번호**, "
+                "둘째는 **선로의 진행 방향 수(앞/뒤)**, 셋째는 **신호등 기본색 수**예요. "
+                "세 자리 암호를 입력하세요."
+            ),
+            "input_type": "text",
+            "answer": "223",
+            "placeholder": "예: 123",
+            "hint": "2호선 → 2, 앞/뒤 → 2, 빨강·노랑·초록 → 3",
+        }
+
+    if game_type == "odd_one_out":
+        return make_choice_puzzle(
+            "🔎 철도 친구 중 다른 하나",
+            "네 친구 중 **철길 위를 달리지 않는 것** 하나가 숨어 있어요. 누구일까요?",
+            "시내버스",
+            ["KTX", "SRT", "무궁화호"],
+            icon="🔎",
+            hint="레일을 따라 달리는 탈것인지 생각해 보세요.",
+        )
+
+    if game_type == "station_order":
+        return make_choice_puzzle(
+            "🗺️ 역 순서 퍼즐",
+            "게임 진행 방향으로 **당산 → 영등포구청 → ?** 입니다. 빈칸에 들어갈 역은?",
+            "문래",
+            ["합정", "신도림", "대림"],
+            icon="🗺️",
+            hint="현재 게임의 2호선 진행 순서를 떠올려 보세요.",
+        )
+
+    if game_type == "word_scramble":
+        words = [
+            ("장-강-승", "승강장", "기차를 타고 내리는 곳"),
+            ("차-동-전", "전동차", "전기로 움직이는 지하철 차량"),
+            ("역-승-환", "환승역", "다른 노선으로 갈아탈 수 있는 역"),
+            ("표-차-기", "기차표", "기차를 탈 때 필요한 표"),
+        ]
+        scrambled, answer, clue = random.choice(words)
+        return {
+            "title": "🔤 철도 글자 조립",
+            "icon": "🔤",
+            "prompt": f"글자가 뒤섞였어요: **{scrambled}**  \n힌트: {clue}. 올바른 낱말을 입력하세요.",
+            "input_type": "text",
+            "answer": answer,
+            "placeholder": "정답을 입력하세요",
+            "hint": f"힌트의 뜻을 가진 {len(answer)}글자 낱말입니다.",
+        }
+
+    if game_type == "switch_track":
+        start_track = random.choice([1, 2])
+        moves = random.choice([
+            [1, 1, -1],
+            [1, -1, 2],
+            [2, -1, 1],
+        ])
+        final_track = start_track + sum(moves)
+        symbols = " → ".join(("오른쪽 1칸" if m == 1 else "오른쪽 2칸" if m == 2 else "왼쪽 1칸") for m in moves)
+        distractors = [v for v in range(1, 6) if v != final_track][:3]
+        return make_choice_puzzle(
+            "🛤️ 선로 스위치 퍼즐",
+            f"열차가 **{start_track}번 선로**에서 출발해요. 스위치가 **{symbols}** 순서로 바뀌면 마지막 선로는 몇 번일까요?",
+            f"{final_track}번",
+            [f"{v}번" for v in distractors],
+            icon="🛤️",
+            hint="오른쪽은 더하고, 왼쪽은 빼면 됩니다.",
+        )
+
+    if game_type == "pattern":
+        patterns = [
+            (["🚇", "🚆", "🚄", "🚇", "🚆"], "🚄", ["🚇", "🚆", "🚌"]),
+            (["🔵", "🔵", "🟠", "🔵", "🔵"], "🟠", ["🔵", "🟢", "🔴"]),
+            (["🚉", "🎫", "🚉", "🎫", "🚉"], "🎫", ["🚉", "🚦", "🛤️"]),
+        ]
+        seq, correct, distractors = random.choice(patterns)
+        return make_choice_puzzle(
+            "🧠 반복 패턴 찾기",
+            f"전광판 패턴이 **{' '.join(seq)} ?** 순서로 반복됩니다. 다음 그림은?",
+            correct,
+            distractors,
+            icon="🧠",
+            hint="처음부터 반복되는 묶음을 찾아보세요.",
+        )
+
+    if game_type == "emoji_code":
+        puzzles = [
+            ("🚉 + 🔄", "환승역", ["종착역", "버스정류장", "매표소"]),
+            ("🚆 + 🎫", "기차표", ["시간표", "승강장", "기관차"]),
+            ("🚇 + 🚪", "스크린도어", ["개찰구", "터널", "철교"]),
+        ]
+        code, correct, distractors = random.choice(puzzles)
+        return make_choice_puzzle(
+            "😎 이모지 철도 암호",
+            f"전광판에 **{code}** 라는 그림 암호가 나타났어요. 가장 잘 어울리는 말은?",
+            correct,
+            distractors,
+            icon="😎",
+            hint="두 그림이 뜻하는 말을 하나로 합쳐 보세요.",
+        )
+
+    # ticket_math
+    coin500 = random.choice([1, 2, 3])
+    coin100 = random.choice([2, 3, 4])
+    total = coin500 * 500 + coin100 * 100
+    return {
+        "title": "🎫 보물열차 티켓 계산",
+        "icon": "🎫",
+        "prompt": (
+            f"보물열차 표를 사려면 동전을 정확히 세어야 해요. **500원짜리 {coin500}개**와 "
+            f"**100원짜리 {coin100}개**를 모두 합치면 몇 원일까요?"
+        ),
+        "input_type": "number",
+        "answer": total,
+        "hint": "500원 동전의 합과 100원 동전의 합을 각각 구한 뒤 더하세요.",
+    }
+
 
 ITEMS = {
     "double_move":  {"name": "🚄 2배 이동 카드", "desc": "이번 주사위 결과를 2배로!"},
@@ -587,6 +759,8 @@ def init_game(keep_name=True):
     st.session_state.score_x2         = False
     st.session_state.event_log         = []
     st.session_state.ghost_game        = None
+    st.session_state.treasure_game     = None
+    st.session_state.pending_treasure  = None
     st.session_state.treasure_effect   = None
     st.session_state.celebration_event = None
     st.session_state.ladder_animation  = None
@@ -727,6 +901,93 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
     add_event_log(message)
 
 
+
+def begin_treasure_minigame(station_name, resume):
+    """보물상자 칸에 도착하면 역별 퍼즐을 시작합니다."""
+    puzzle = build_treasure_puzzle(station_name)
+    st.session_state.treasure_game = {
+        "id": random.randint(100000, 999999),
+        "station": station_name,
+        "puzzle": puzzle,
+        "attempts": 0,
+        "feedback": "",
+        "resume": resume,
+    }
+    st.session_state.game_phase = "treasure_minigame"
+    st.session_state.play_sound = "treasure"
+    st.session_state.last_message = (
+        resume.get("base_msg", "")
+        + f"\n\n🎁 **{station_name}역 보물상자 발견!** 미니게임을 클리어하면 점수를 얻습니다. "
+          f"첫 성공은 +{TREASURE_REWARD}점, 재도전 성공은 +{TREASURE_RETRY_REWARD}점!"
+    )
+    add_event_log(f"🎁 {station_name}역 보물상자 미니게임 시작!")
+
+
+def normalize_puzzle_text(value):
+    return "".join(str(value).strip().lower().split())
+
+
+def resolve_treasure_minigame(answer_value):
+    """보물상자 퍼즐 답을 판정하고 성공해야만 점수를 지급합니다."""
+    game = st.session_state.get("treasure_game")
+    if not game:
+        return
+    puzzle = game.get("puzzle", {})
+    input_type = puzzle.get("input_type", "choice")
+
+    if input_type == "choice":
+        is_correct = int(answer_value) == int(puzzle.get("answer", -1))
+    elif input_type == "number":
+        try:
+            is_correct = int(answer_value) == int(puzzle.get("answer"))
+        except (TypeError, ValueError):
+            is_correct = False
+    else:
+        is_correct = normalize_puzzle_text(answer_value) == normalize_puzzle_text(puzzle.get("answer", ""))
+
+    attempts_before = int(game.get("attempts", 0))
+    resume = game.get("resume", {})
+    station = game.get("station", "보물상자")
+
+    if is_correct:
+        reward = TREASURE_REWARD if attempts_before == 0 else TREASURE_RETRY_REWARD
+        st.session_state.score += reward
+        result_msg = f"🎉 {puzzle.get('title', '퍼즐')} 클리어! 보물상자에서 **+{reward}점** 획득!"
+        st.session_state.treasure_effect = {
+            "id": random.randint(100000, 999999),
+            "message": f"퍼즐 성공! +{reward}점!",
+        }
+        st.session_state.play_sound = "treasure"
+        add_event_log(f"🏆 {station}역 보물상자 퍼즐 성공! +{reward}점")
+        st.session_state.treasure_game = None
+        base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
+        continue_after_forward(base_msg, bool(resume.get("double_quiz", False)), bool(resume.get("did_win", False)))
+        return
+
+    game["attempts"] = attempts_before + 1
+    if game["attempts"] < TREASURE_MAX_ATTEMPTS:
+        game["feedback"] = "❌ 아쉽습니다! 힌트를 보고 한 번 더 도전하세요."
+        st.session_state.last_message = (
+            resume.get("base_msg", "")
+            + "\n\n❌ 첫 번째 도전 실패! 아직 한 번의 기회가 남아 있습니다."
+        )
+        st.session_state.play_sound = "wrong"
+        add_event_log(f"🧩 {station}역 보물 퍼즐 1차 실패 — 재도전!")
+        return
+
+    correct_answer = puzzle.get("answer")
+    if input_type == "choice":
+        options = puzzle.get("options", [])
+        if isinstance(correct_answer, int) and 0 <= correct_answer < len(options):
+            correct_answer = options[correct_answer]
+    result_msg = f"💨 두 번의 도전을 모두 사용했습니다. 이번 보물상자는 **0점**입니다. 정답: {correct_answer}"
+    st.session_state.treasure_game = None
+    st.session_state.play_sound = "wrong"
+    add_event_log(f"📦 {station}역 보물상자 미니게임 실패 — 점수 없음")
+    base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
+    continue_after_forward(base_msg, bool(resume.get("double_quiz", False)), bool(resume.get("did_win", False)))
+
+
 def generate_ladder_layout():
     """4줄 사다리의 가로 연결선과 아래쪽 결과를 생성합니다.
 
@@ -831,7 +1092,21 @@ def begin_ghost_minigame(penalty, resume):
 
 
 def continue_after_forward(base_msg, double_quiz, did_win):
-    """이동·이벤트·유령 처리가 끝난 뒤 승리 또는 퀴즈 단계로 이어갑니다."""
+    """이동·이벤트·유령·보물상자 처리가 끝난 뒤 승리 또는 퀴즈 단계로 이어갑니다."""
+    pending_treasure = st.session_state.get("pending_treasure")
+    if pending_treasure:
+        st.session_state.pending_treasure = None
+        begin_treasure_minigame(
+            pending_treasure,
+            {
+                "kind": "forward",
+                "base_msg": base_msg,
+                "double_quiz": double_quiz,
+                "did_win": did_win,
+            },
+        )
+        return
+
     if did_win:
         st.session_state.play_sound = "win" if st.session_state.play_sound in (None, "dice") else st.session_state.play_sound
         st.session_state.game_phase = "game_over"
@@ -955,27 +1230,25 @@ def apply_square_event(station_name, pos):
             messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
 
     elif sq == "treasure":
-        ev = random.choice(TREASURE_EVENTS)
-        treasure_msg = ev["msg"]
-        if ev.get("score"):
-            st.session_state.score += int(ev["score"])
-        if ev.get("bonus_dice"):
-            st.session_state.bonus_dice += int(ev["bonus_dice"])
-        if ev.get("push_binbou", 0) > 0:
-            move_binbou(-int(ev["push_binbou"]))
-        if ev.get("random_item"):
-            item = random.choice(list(ITEMS.keys()))
-            if add_item(item):
-                treasure_msg += f" 획득 아이템: {ITEMS[item]['name']}"
-            else:
-                treasure_msg += " 하지만 아이템 보관함이 가득 찼어요."
-        messages.append(f"🎁 보물상자 OPEN! {treasure_msg}")
-        st.session_state.treasure_effect = {
-            "id": random.randint(100000, 999999),
-            "message": treasure_msg,
+        # 즉시 보상을 주지 않습니다. 유령 접촉 처리가 끝난 뒤 역별 미니게임을 시작하고,
+        # 퍼즐을 클리어했을 때만 점수를 지급합니다.
+        st.session_state.pending_treasure = station_name
+        game_name = TREASURE_GAME_BY_STATION.get(station_name, "number_signal")
+        game_labels = {
+            "number_signal": "숫자 신호 퍼즐",
+            "code_lock": "암호 자물쇠",
+            "odd_one_out": "다른 것 찾기",
+            "station_order": "역 순서 퍼즐",
+            "word_scramble": "글자 조립",
+            "switch_track": "선로 스위치",
+            "pattern": "반복 패턴",
+            "emoji_code": "이모지 암호",
+            "ticket_math": "티켓 계산",
         }
-        st.session_state.play_sound = "treasure"
-        add_event_log(f"🎁 {station_name}역 보물상자: {treasure_msg}")
+        messages.append(
+            f"🎁 보물상자 발견! **{game_labels.get(game_name, '퍼즐')}**을 클리어해야 점수를 받을 수 있어요."
+        )
+        add_event_log(f"🎁 {station_name}역 보물상자 발견 — 미니게임 대기")
 
     return "\n\n".join(messages) if messages else None, double_quiz, ghost_penalty
 
@@ -991,6 +1264,7 @@ def move_forward():
     st.session_state.play_sound = None
     st.session_state.binbou_effect = None
     st.session_state.treasure_effect = None
+    st.session_state.pending_treasure = None
 
     dice = roll_dice_value(use_item=st.session_state.active_item == "double_move")
     landing_pos = min(old_pos + dice, GOAL_INDEX)
@@ -1847,6 +2121,53 @@ with st.sidebar:
                         st.rerun()
         st.caption("🎯 성공 확률 50%! 탈출하면 감점 없이 먹보유령이 8칸 뒤로 물러납니다.")
 
+    elif phase == "treasure_minigame":
+        game = st.session_state.get("treasure_game")
+        st.subheader("🎁 지금 할 일: 보물상자 퍼즐")
+        if game:
+            puzzle = game.get("puzzle", {})
+            attempts = int(game.get("attempts", 0))
+            remaining = TREASURE_MAX_ATTEMPTS - attempts
+            st.warning(f"{puzzle.get('icon', '🧩')} **{puzzle.get('title', '보물 퍼즐')}**")
+            st.markdown(puzzle.get("prompt", "퍼즐을 풀어 보세요."))
+            st.caption(f"남은 기회: {remaining}회 · 첫 성공 +{TREASURE_REWARD}점 / 재도전 성공 +{TREASURE_RETRY_REWARD}점")
+
+            feedback = game.get("feedback", "")
+            if feedback:
+                st.error(feedback)
+                if puzzle.get("hint"):
+                    st.info(f"💡 힌트: {puzzle['hint']}")
+
+            input_type = puzzle.get("input_type", "choice")
+            if input_type == "choice":
+                for option_idx, option in enumerate(puzzle.get("options", [])):
+                    if st.button(
+                        str(option),
+                        key=f"treasure_{game['id']}_{attempts}_{option_idx}",
+                        use_container_width=True,
+                    ):
+                        resolve_treasure_minigame(option_idx)
+                        st.rerun()
+            elif input_type == "number":
+                answer_num = st.number_input(
+                    "정답 숫자",
+                    min_value=0,
+                    step=100,
+                    key=f"treasure_number_{game['id']}_{attempts}",
+                )
+                if st.button("🔓 정답 확인", key=f"treasure_submit_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    resolve_treasure_minigame(answer_num)
+                    st.rerun()
+            else:
+                answer_text = st.text_input(
+                    "정답",
+                    placeholder=puzzle.get("placeholder", "정답을 입력하세요"),
+                    key=f"treasure_text_{game['id']}_{attempts}",
+                )
+                if st.button("🔓 정답 확인", key=f"treasure_submit_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    resolve_treasure_minigame(answer_text)
+                    st.rerun()
+
     elif phase == "waiting_penalty_roll":
         st.subheader("😱 지금 할 일: 뒤로 가기")
         if "skip_penalty" in st.session_state.hand_items:
@@ -1996,7 +2317,7 @@ with st.sidebar:
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
 - 👿 먹보유령에게 잡히면 4개 사다리 중 하나를 선택! 2개는 탈출, 2개는 잡힘
-- 🎁 주황색 보물상자 칸에서 특별 보상 획득
+- 🎁 주황색 보물상자 칸에서는 역마다 다른 퍼즐 미니게임 도전 (성공해야 점수 획득)
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
 - 🃏 아이템 카드를 전략적으로 활용!
 - 🏁 건대입구역 도달이 목표!
@@ -2004,7 +2325,7 @@ with st.sidebar:
 
     with st.expander("🗺️ 칸 종류 설명"):
         st.caption("🔵 **파란 칸** — 보너스 (추가 주사위·점수·아이템)")
-        st.caption("🟠 **보물상자 칸** — 점수·아이템·주사위 보너스 등 특별 보상")
+        st.caption("🟠 **보물상자 칸** — 9개 역별 퍼즐 미니게임 (클리어해야 점수 획득)")
         st.caption("🟢 **도착 칸** — 건대입구 (최종 목표)")
 
 
@@ -2021,7 +2342,7 @@ msg   = st.session_state.last_message
 phase = st.session_state.game_phase
 if phase == "game_over":
     st.success(msg)
-elif phase == "answering_quiz":
+elif phase in ("answering_quiz", "treasure_minigame"):
     st.warning(msg)
 elif phase in ("waiting_penalty_roll", "ghost_minigame"):
     st.error(msg)
