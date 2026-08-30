@@ -881,6 +881,8 @@ def init_game(keep_name=True):
     st.session_state.event_log         = []
     st.session_state.ghost_game        = None
     st.session_state.ghost_puzzle_counter = 0
+    st.session_state.ghost_maze_counter = 0
+    st.session_state.last_ghost_game_type = None
     st.session_state.treasure_game     = None
     st.session_state.pending_treasure  = None
     st.session_state.last_treasure_game_type = None
@@ -1331,39 +1333,175 @@ def render_ladder_preview(game):
     components.html(preview_html, height=290, scrolling=False)
 
 
+
+GHOST_MAZE_PUZZLES = [
+    {
+        "name": "A", "rows": 5, "cols": 5, "start": [4, 0], "exit": [0, 4],
+        "walls": [[3, 1], [3, 2], [3, 3], [1, 0], [1, 1], [1, 3], [1, 4], [2, 3], [4, 2]],
+        "ghosts": [[4, 4], [2, 4], [0, 0]],
+    },
+    {
+        "name": "B", "rows": 5, "cols": 5, "start": [4, 4], "exit": [0, 0],
+        "walls": [[3, 3], [3, 2], [3, 1], [1, 4], [1, 3], [1, 1], [1, 0], [2, 1], [4, 2]],
+        "ghosts": [[4, 0], [2, 0], [0, 4]],
+    },
+    {
+        "name": "C", "rows": 5, "cols": 5, "start": [0, 0], "exit": [4, 4],
+        "walls": [[1, 1], [1, 2], [1, 3], [3, 0], [3, 1], [3, 3], [3, 4], [2, 3], [0, 2]],
+        "ghosts": [[0, 4], [2, 4], [4, 0]],
+    },
+    {
+        "name": "D", "rows": 5, "cols": 5, "start": [0, 4], "exit": [4, 0],
+        "walls": [[1, 3], [1, 2], [1, 1], [3, 4], [3, 3], [3, 1], [3, 0], [2, 1], [0, 2]],
+        "ghosts": [[0, 0], [2, 0], [4, 4]],
+    },
+    {
+        "name": "E", "rows": 5, "cols": 5, "start": [4, 2], "exit": [0, 2],
+        "walls": [[3, 1], [3, 2], [3, 3], [1, 1], [1, 3]],
+        "ghosts": [[3, 4], [1, 0], [1, 2]],
+    },
+    {
+        "name": "F", "rows": 5, "cols": 5, "start": [4, 2], "exit": [0, 2],
+        "walls": [[3, 1], [3, 2], [3, 3], [1, 1], [1, 3]],
+        "ghosts": [[3, 0], [1, 4], [1, 2]],
+    },
+]
+
+
+def build_ghost_maze_puzzle(puzzle_index):
+    """눈으로 안전한 길을 찾아 직접 움직이는 미로 퍼즐을 반환합니다."""
+    idx = int(puzzle_index) % len(GHOST_MAZE_PUZZLES)
+    spec = GHOST_MAZE_PUZZLES[idx]
+    return {
+        "maze_index": idx,
+        "maze_name": spec["name"],
+        "rows": int(spec["rows"]),
+        "cols": int(spec["cols"]),
+        "start": list(spec["start"]),
+        "exit": list(spec["exit"]),
+        "walls": [list(x) for x in spec["walls"]],
+        "ghosts": [list(x) for x in spec["ghosts"]],
+        "player": list(spec["start"]),
+        "moves": 0,
+        "feedback": "",
+    }
+
+
+def render_ghost_maze_preview(game):
+    """벽·유령·탈출구가 모두 공개된 5×5 미로를 표시합니다."""
+    if not game:
+        return
+    rows = int(game.get("rows", 5))
+    cols = int(game.get("cols", 5))
+    walls = {tuple(x) for x in game.get("walls", [])}
+    ghosts = {tuple(x) for x in game.get("ghosts", [])}
+    player = tuple(game.get("player", game.get("start", [rows - 1, 0])))
+    start = tuple(game.get("start", player))
+    exit_pos = tuple(game.get("exit", [0, cols - 1]))
+
+    cells = []
+    for r in range(rows):
+        for c in range(cols):
+            pos = (r, c)
+            bg = "#25133f"
+            border = "#5c477e"
+            icon = ""
+            label = ""
+            if pos in walls:
+                bg, border, icon = "#4a4451", "#81798b", "🧱"
+            elif pos == exit_pos:
+                bg, border, icon, label = "#124d3d", "#55d7ae", "🚪", "탈출"
+            elif pos in ghosts:
+                bg, border, icon, label = "#5e1737", "#ff79a5", "👿", "위험"
+            elif pos == start:
+                bg, border, label = "#243f62", "#6fb5ff", "출발"
+            if pos == player:
+                bg, border, icon, label = "#735b16", "#ffd166", "🚄", "현재"
+            cells.append(
+                f"<div style='height:48px;border:2px solid {border};border-radius:8px;background:{bg};"
+                f"display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:0'>"
+                f"<div style='font-size:22px;line-height:23px'>{icon or '·'}</div>"
+                f"<div style='font-size:8px;color:#e9def7;font-weight:800;height:10px'>{label}</div></div>"
+            )
+
+    html = (
+        "<div style=\"font-family:'Noto Sans KR',sans-serif;background:#16072a;border:1px solid #6741a8;"
+        "border-radius:12px;padding:9px;color:white\">"
+        "<div style='text-align:center;font-size:12px;font-weight:900;margin-bottom:3px'>🧭 먹보유령 미니 미로</div>"
+        "<div style='text-align:center;font-size:10px;color:#d5c8e9;margin-bottom:7px'>벽 🧱은 지나갈 수 없고, 👿 칸을 피해서 🚪까지 이동하세요.</div>"
+        f"<div style='display:grid;grid-template-columns:repeat({cols},minmax(0,1fr));gap:5px'>" + "".join(cells) + "</div>"
+        "</div>"
+    )
+    components.html(html, height=315, scrolling=False)
+
+
+def choose_ghost_game_type():
+    """첫 게임은 무작위로 정하고, 이후에는 같은 종류가 연속되지 않도록 번갈아 선택합니다."""
+    kinds = ["route", "maze"]
+    last = st.session_state.get("last_ghost_game_type")
+    choices = [k for k in kinds if k != last] if last in kinds else kinds
+    chosen = random.choice(choices)
+    st.session_state.last_ghost_game_type = chosen
+    return chosen
+
 def begin_ghost_minigame(penalty, resume):
-    """유령 접촉 시 운이 아닌 시각적 선로 추적 퍼즐을 시작합니다."""
+    """유령 접촉 시 선로 추적 또는 미니 미로 중 하나의 퍼즐을 시작합니다."""
     penalty = max(0, int(penalty))
     st.session_state.binbou_pos = st.session_state.position
     st.session_state.binbou_attached = True
 
-    # 매 접촉마다 미리 정해 둔 퍼즐을 차례로 사용합니다. 아래 결과는 처음부터 공개됩니다.
-    puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
-    rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
-    st.session_state.ghost_puzzle_counter = puzzle_counter + 1
+    game_type = choose_ghost_game_type()
+    game_id = random.randint(100000, 999999)
+    # 이전 유령 퍼즐의 결과 애니메이션이 새 퍼즐에 남지 않도록 초기화합니다.
+    st.session_state.ladder_animation = None
 
-    st.session_state.ghost_game = {
-        "id": random.randint(100000, 999999),
-        "rungs": rungs,
-        "bottom_outcomes": bottom_outcomes,
-        "puzzle_index": puzzle_index,
-        "penalty": penalty,
-        "resume": resume,
-    }
+    if game_type == "maze":
+        maze_counter = int(st.session_state.get("ghost_maze_counter", 0))
+        maze = build_ghost_maze_puzzle(maze_counter)
+        st.session_state.ghost_maze_counter = maze_counter + 1
+        st.session_state.ghost_game = {
+            "id": game_id,
+            "game_type": "maze",
+            "penalty": penalty,
+            "resume": resume,
+            **maze,
+        }
+        challenge_message = "👿 먹보유령 미니 미로! 벽과 유령을 눈으로 보고 안전한 길을 찾아 🚪 탈출구까지 이동하세요!"
+        st.session_state.last_message = (
+            resume.get("base_msg", "")
+            + "\n\n👿 **먹보유령 미니 미로!** 벽 🧱과 유령 👿의 위치가 모두 공개되어 있습니다. "
+              "방향 버튼으로 열차를 움직여 유령을 피하고 🚪 탈출구까지 가세요. 운 요소는 없습니다!"
+        )
+        add_event_log("🧭 먹보유령 미니 미로 시작!")
+    else:
+        puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
+        rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
+        st.session_state.ghost_puzzle_counter = puzzle_counter + 1
+        st.session_state.ghost_game = {
+            "id": game_id,
+            "game_type": "route",
+            "rungs": rungs,
+            "bottom_outcomes": bottom_outcomes,
+            "puzzle_index": puzzle_index,
+            "penalty": penalty,
+            "resume": resume,
+        }
+        challenge_message = "👿 먹보유령 선로 퍼즐! 눈으로 경로를 따라 탈출구와 연결되는 출발 번호를 찾으세요!"
+        st.session_state.last_message = (
+            resume.get("base_msg", "")
+            + "\n\n👿 **먹보유령 선로 탈출 퍼즐!** 아래의 🚪 탈출구 위치는 공개되어 있습니다. "
+              "선로를 눈으로 따라가서 탈출구에 도착하는 위쪽 번호를 선택하세요. 운 요소는 없습니다!"
+        )
+        add_event_log("🛤️ 먹보유령 선로 탈출 퍼즐 시작!")
+
     st.session_state.game_phase = "ghost_minigame"
     st.session_state.binbou_effect = {
         "id": random.randint(100000, 999999),
         "type": "challenge",
-        "message": "👿 먹보유령 선로 퍼즐! 눈으로 경로를 따라 탈출구와 연결되는 출발 번호를 찾으세요!",
+        "message": challenge_message,
         "penalty": 0,
     }
     st.session_state.play_sound = "ghost"
-    st.session_state.last_message = (
-        resume.get("base_msg", "")
-        + "\n\n👿 **먹보유령 선로 탈출 퍼즐!** 아래의 🚪 탈출구 위치는 공개되어 있습니다. "
-          "선로를 눈으로 따라가서 탈출구에 도착하는 위쪽 번호를 선택하세요. 운 요소는 없습니다!"
-    )
-    add_event_log("🛤️ 먹보유령 선로 탈출 퍼즐 시작!")
 
 
 def continue_after_forward(base_msg, double_quiz, did_win):
@@ -1418,44 +1556,19 @@ def continue_after_forward(base_msg, double_quiz, did_win):
     st.session_state.quiz_key += 1
 
 
-def resolve_ghost_minigame(choice_index):
-    """선로 퍼즐 선택 결과를 판정한 뒤 원래 게임 흐름으로 복귀합니다."""
-    game = st.session_state.get("ghost_game")
+def finish_ghost_puzzle(game, success, result_msg, ladder_payload=None):
+    """유령 퍼즐의 성공/실패를 공통 처리하고 원래 게임 흐름으로 복귀합니다."""
     if not game:
         return
-
-    choice_index = int(choice_index)
-    if not 0 <= choice_index < 4:
-        return
-
-    rungs = game.get("rungs")
-    bottom_outcomes = game.get("bottom_outcomes")
-    if not isinstance(rungs, list) or not rungs or not isinstance(bottom_outcomes, list) or len(bottom_outcomes) != 4:
-        # 이전 세션 데이터가 남아 있어도 난수 없이 해당 퍼즐 번호로 복구합니다.
-        rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(game.get("puzzle_index", 0))
-        game["rungs"] = rungs
-        game["bottom_outcomes"] = bottom_outcomes
-        game["puzzle_index"] = puzzle_index
-
     penalty = int(game.get("penalty", 10))
     resume = game.get("resume", {})
     ghost_start = st.session_state.position
-    end_index = ladder_endpoint(choice_index, rungs)
-    success = bottom_outcomes[end_index] == "escape"
 
     if success:
-        result_msg = (
-            f"💨 {choice_index + 1}번 선로를 따라 {end_index + 1}번 끝점의 🚪 탈출구에 도착! 퍼즐 성공! "
-            "먹보유령이 8칸 뒤로 물러납니다."
-        )
         show_binbou_effect(result_msg, 0, "escaped")
         st.session_state.play_sound = "escape"
         reset_binbou_after_catch(distance=8)
     else:
-        result_msg = (
-            f"😵 {choice_index + 1}번 선로를 따라가니 {end_index + 1}번 끝점의 👿 유령에게 도착했어요! 점수 -{penalty}점! "
-            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
-        )
         show_binbou_effect(result_msg, penalty, "caught")
         reset_binbou_after_catch(distance=BINBOU_RESET_DISTANCE)
 
@@ -1472,15 +1585,7 @@ def resolve_ghost_minigame(choice_index):
         "dice": None,
         "win": did_win,
     }
-    st.session_state.ladder_animation = {
-        "id": game.get("id", random.randint(100000, 999999)),
-        "rungs": rungs,
-        "selected": choice_index,
-        "end": end_index,
-        "bottom_outcomes": bottom_outcomes,
-        "success": success,
-        "message": result_msg,
-    }
+    st.session_state.ladder_animation = ladder_payload
     st.session_state.ghost_game = None
 
     base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
@@ -1489,6 +1594,100 @@ def resolve_ghost_minigame(choice_index):
     else:
         st.session_state.game_phase = "ready_to_roll"
         st.session_state.last_message = base_msg + "\n\n다시 주사위를 굴려 보세요."
+
+
+def resolve_ghost_minigame(choice_index):
+    """선로 추적 퍼즐의 선택 결과를 판정합니다."""
+    game = st.session_state.get("ghost_game")
+    if not game or game.get("game_type", "route") != "route":
+        return
+
+    choice_index = int(choice_index)
+    if not 0 <= choice_index < 4:
+        return
+
+    rungs = game.get("rungs")
+    bottom_outcomes = game.get("bottom_outcomes")
+    if not isinstance(rungs, list) or not rungs or not isinstance(bottom_outcomes, list) or len(bottom_outcomes) != 4:
+        rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(game.get("puzzle_index", 0))
+        game["rungs"] = rungs
+        game["bottom_outcomes"] = bottom_outcomes
+        game["puzzle_index"] = puzzle_index
+
+    end_index = ladder_endpoint(choice_index, rungs)
+    success = bottom_outcomes[end_index] == "escape"
+    penalty = int(game.get("penalty", 10))
+
+    if success:
+        result_msg = (
+            f"💨 {choice_index + 1}번 선로를 따라 {end_index + 1}번 끝점의 🚪 탈출구에 도착! 퍼즐 성공! "
+            "먹보유령이 8칸 뒤로 물러납니다."
+        )
+    else:
+        result_msg = (
+            f"😵 {choice_index + 1}번 선로를 따라가니 {end_index + 1}번 끝점의 👿 유령에게 도착했어요! 점수 -{penalty}점! "
+            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+        )
+
+    ladder_payload = {
+        "id": game.get("id", random.randint(100000, 999999)),
+        "rungs": rungs,
+        "selected": choice_index,
+        "end": end_index,
+        "bottom_outcomes": bottom_outcomes,
+        "success": success,
+        "message": result_msg,
+    }
+    finish_ghost_puzzle(game, success, result_msg, ladder_payload=ladder_payload)
+
+
+def resolve_ghost_maze_move(direction):
+    """미로에서 한 칸 이동하고 벽·유령·탈출구를 판정합니다."""
+    game = st.session_state.get("ghost_game")
+    if not game or game.get("game_type") != "maze":
+        return
+
+    deltas = {"up": (-1, 0), "down": (1, 0), "left": (0, -1), "right": (0, 1)}
+    if direction not in deltas:
+        return
+
+    rows = int(game.get("rows", 5))
+    cols = int(game.get("cols", 5))
+    r, c = map(int, game.get("player", game.get("start", [rows - 1, 0])))
+    dr, dc = deltas[direction]
+    nr, nc = r + dr, c + dc
+    walls = {tuple(x) for x in game.get("walls", [])}
+    ghosts = {tuple(x) for x in game.get("ghosts", [])}
+    exit_pos = tuple(game.get("exit", [0, cols - 1]))
+
+    if not (0 <= nr < rows and 0 <= nc < cols):
+        game["feedback"] = "🚧 미로 밖으로는 갈 수 없어요. 다른 방향을 찾아보세요."
+        return
+    if (nr, nc) in walls:
+        game["feedback"] = "🧱 벽에 막혔어요. 화면을 보고 다른 길로 움직여 보세요."
+        return
+
+    game["player"] = [nr, nc]
+    game["moves"] = int(game.get("moves", 0)) + 1
+    game["feedback"] = ""
+
+    penalty = int(game.get("penalty", 10))
+    if (nr, nc) in ghosts:
+        result_msg = (
+            f"😵 미로에서 👿 먹보유령이 있는 칸으로 들어갔어요! 점수 -{penalty}점! "
+            "먹보유령은 6칸 뒤에서 다시 따라옵니다."
+        )
+        finish_ghost_puzzle(game, False, result_msg)
+        return
+
+    if (nr, nc) == exit_pos:
+        moves = int(game.get("moves", 0))
+        result_msg = (
+            f"💨 {moves}번 움직여 🚪 탈출구에 도착! 미로 탈출 성공! "
+            "먹보유령이 8칸 뒤로 물러납니다."
+        )
+        finish_ghost_puzzle(game, True, result_msg)
+        return
 
 
 def apply_square_event(station_name, pos):
@@ -2519,22 +2718,50 @@ with st.sidebar:
 
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
-        st.subheader("👿 지금 할 일: 탈출 선로 찾기")
-        st.warning("🛤️ 선로를 눈으로 따라가서 아래 🚪 탈출구와 이어지는 위쪽 번호를 골라 주세요.")
-        if game:
-            render_ladder_preview(game)
-            ladder_cols = st.columns(4)
-            for ladder_idx, col in enumerate(ladder_cols):
-                with col:
-                    if st.button(
-                        f"{ladder_idx + 1}번",
-                        key=f"ghost_ladder_{game['id']}_{ladder_idx}",
-                        use_container_width=True,
-                        type="primary",
-                    ):
-                        resolve_ghost_minigame(ladder_idx)
-                        st.rerun()
-        st.caption("🎯 운 요소 없음: 경로를 정확히 추리하면 반드시 탈출합니다. 성공하면 먹보유령이 8칸 뒤로 물러납니다.")
+        game_type = game.get("game_type", "route") if game else "route"
+
+        if game_type == "maze":
+            st.subheader("👿 지금 할 일: 미로 탈출")
+            st.warning("🧭 벽 🧱과 유령 👿을 피해서 열차를 🚪 탈출구까지 움직여 주세요.")
+            if game:
+                render_ghost_maze_preview(game)
+                feedback = game.get("feedback", "")
+                if feedback:
+                    st.info(feedback)
+
+                top_a, top_b, top_c = st.columns([1, 1, 1])
+                with top_b:
+                    if st.button("⬆️", key=f"ghost_maze_up_{game['id']}", use_container_width=True):
+                        resolve_ghost_maze_move("up"); st.rerun()
+                left_c, down_c, right_c = st.columns(3)
+                with left_c:
+                    if st.button("⬅️", key=f"ghost_maze_left_{game['id']}", use_container_width=True):
+                        resolve_ghost_maze_move("left"); st.rerun()
+                with down_c:
+                    if st.button("⬇️", key=f"ghost_maze_down_{game['id']}", use_container_width=True):
+                        resolve_ghost_maze_move("down"); st.rerun()
+                with right_c:
+                    if st.button("➡️", key=f"ghost_maze_right_{game['id']}", use_container_width=True):
+                        resolve_ghost_maze_move("right"); st.rerun()
+                st.caption(f"현재 이동 횟수: {int(game.get('moves', 0))}회 · 👿 칸에 들어가면 잡힙니다.")
+            st.caption("🎯 운 요소 없음: 미로를 눈으로 살펴 안전한 길을 찾으면 반드시 탈출할 수 있습니다.")
+        else:
+            st.subheader("👿 지금 할 일: 탈출 선로 찾기")
+            st.warning("🛤️ 선로를 눈으로 따라가서 아래 🚪 탈출구와 이어지는 위쪽 번호를 골라 주세요.")
+            if game:
+                render_ladder_preview(game)
+                ladder_cols = st.columns(4)
+                for ladder_idx, col in enumerate(ladder_cols):
+                    with col:
+                        if st.button(
+                            f"{ladder_idx + 1}번",
+                            key=f"ghost_ladder_{game['id']}_{ladder_idx}",
+                            use_container_width=True,
+                            type="primary",
+                        ):
+                            resolve_ghost_minigame(ladder_idx)
+                            st.rerun()
+            st.caption("🎯 운 요소 없음: 경로를 정확히 추리하면 반드시 탈출합니다. 성공하면 먹보유령이 8칸 뒤로 물러납니다.")
 
     elif phase == "treasure_minigame":
         game = st.session_state.get("treasure_game")
