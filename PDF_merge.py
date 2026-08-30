@@ -309,7 +309,7 @@ TREASURE_GAME_LABELS = {
     "memory_pairs": "철도 카드 짝맞추기",
     "maze": "미니 선로 미로",
     "cargo_balance": "화물 균형 맞추기",
-    "mastermind": "색상 암호 추리",
+    "mastermind": "색깔 객차 순서 맞추기",
     "sliding_tiles": "숫자 타일 슬라이딩",
 }
 
@@ -480,19 +480,24 @@ def build_treasure_puzzle(station_name, game_type=None):
         }
 
     if game_type == "mastermind":
+        # 어려운 Mastermind 추리 대신, 눈으로 비교하며 인접 객차를 바꾸는 쉬운 배열 퍼즐입니다.
         colors = ["🔴", "🟡", "🟢", "🔵"]
-        secret = random.sample(range(4), 3)
+        goal = colors[:]
+        random.shuffle(goal)
+        state = _shuffle_until_changed(goal)
         return {
             "game_type": game_type,
-            "title": "🎨 색상 암호 추리",
-            "icon": "🎨",
-            "prompt": "3칸 색상 암호를 추리하세요. 각 칸을 눌러 색을 바꾼 뒤 검사하면 위치·색상 힌트를 받을 수 있습니다.",
+            "title": "🌈 색깔 객차 순서 맞추기",
+            "icon": "🌈",
+            "prompt": (
+                "위의 **목표 객차 순서**를 보고, 아래의 색깔 객차 사이에 있는 **↔ 교환 버튼**을 눌러 "
+                "똑같은 순서로 만들어 보세요."
+            ),
             "colors": colors,
-            "secret": secret,
-            "state": [0, 0, 0],
-            "max_attempts": 4,
-            "history": [],
-            "hint": "●는 색과 위치가 모두 맞음, ○는 색은 있지만 위치가 다름을 뜻합니다.",
+            "goal": goal,
+            "state": state,
+            "max_attempts": 3,
+            "hint": "목표의 첫 번째 색부터 비교해 보세요. 이웃한 두 객차만 서로 자리를 바꿀 수 있습니다.",
         }
 
     # sliding_tiles
@@ -1196,7 +1201,7 @@ def check_treasure_minigame():
     puzzle = game.get("puzzle", {})
     kind = puzzle.get("game_type")
 
-    if kind in ("car_sort", "switch_route", "signal_grid", "track_rotate"):
+    if kind in ("car_sort", "switch_route", "signal_grid", "track_rotate", "mastermind"):
         if list(puzzle.get("state", [])) == list(puzzle.get("goal", [])):
             complete_treasure_minigame()
         else:
@@ -1212,26 +1217,6 @@ def check_treasure_minigame():
             complete_treasure_minigame()
         else:
             fail_treasure_attempt(f"⚖️ 현재는 왼쪽 {left}kg / 오른쪽 {right}kg입니다.")
-        return
-
-    if kind == "mastermind":
-        guess = list(puzzle.get("state", []))
-        secret = list(puzzle.get("secret", []))
-        if guess == secret:
-            complete_treasure_minigame()
-            return
-
-        exact = sum(a == b for a, b in zip(guess, secret))
-        common = sum(min(guess.count(c), secret.count(c)) for c in set(guess))
-        misplaced = max(0, common - exact)
-        puzzle.setdefault("history", []).append({
-            "guess": guess[:],
-            "exact": exact,
-            "misplaced": misplaced,
-        })
-        fail_treasure_attempt(
-            f"🔎 힌트: ● {exact}개(색+위치 일치), ○ {misplaced}개(색만 일치)"
-        )
         return
 
 
@@ -1314,9 +1299,11 @@ def treasure_puzzle_action(action, index=None):
         return
 
     if kind == "mastermind":
+        # 색깔 객차 사이의 버튼을 누르면 이웃한 두 객차만 서로 자리를 바꿉니다.
         i = int(index)
-        colors = puzzle.get("colors", ["🔴", "🟡", "🟢", "🔵"])
-        puzzle["state"][i] = (int(puzzle["state"][i]) + 1) % len(colors)
+        state = puzzle.get("state", [])
+        if action == "swap" and 0 <= i < len(state) - 1:
+            state[i], state[i + 1] = state[i + 1], state[i]
         return
 
     if kind == "sliding_tiles":
@@ -3103,28 +3090,46 @@ with st.sidebar:
                 if st.button("⚖️ 균형 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
                     check_treasure_minigame(); st.rerun()
 
-            # 8) Mastermind형 색상 암호
+            # 8) 쉬운 색깔 객차 순서 맞추기
             elif kind == "mastermind":
-                colors = puzzle.get("colors", ["🔴", "🟡", "🟢", "🔵"])
-                st.markdown("**현재 암호 조합 — 각 칸을 눌러 색을 바꾸세요**")
-                cols = st.columns(3)
-                for i, col in enumerate(cols):
+                goal = list(puzzle.get("goal", []))
+                state = list(puzzle.get("state", []))
+
+                st.markdown("**목표 객차 순서**")
+                goal_cols = st.columns(len(goal))
+                for i, col in enumerate(goal_cols):
                     with col:
-                        ci = puzzle["state"][i]
+                        st.markdown(
+                            f"<div style='text-align:center;font-size:34px;padding:5px'>{goal[i]}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                st.markdown("**현재 객차 순서**")
+                state_cols = st.columns(len(state))
+                for i, col in enumerate(state_cols):
+                    with col:
+                        st.markdown(
+                            f"<div style='text-align:center;font-size:34px;padding:5px'>{state[i]}</div>",
+                            unsafe_allow_html=True,
+                        )
+
+                st.caption("아래 ↔ 버튼은 바로 위의 이웃한 두 객차만 서로 바꿉니다.")
+                swap_cols = st.columns(max(1, len(state) - 1))
+                for i, col in enumerate(swap_cols):
+                    with col:
                         if st.button(
-                            colors[ci],
-                            key=f"master_{game['id']}_{i}_{ci}",
+                            f"{i+1} ↔ {i+2}",
+                            key=f"color_swap_{game['id']}_{i}_{''.join(state)}",
                             use_container_width=True,
                         ):
-                            treasure_puzzle_action("cycle", i); st.rerun()
-                history = puzzle.get("history", [])
-                if history:
-                    st.markdown("**이전 검사 힌트**")
-                    for h in history[-3:]:
-                        guess = " ".join(colors[i] for i in h["guess"])
-                        st.caption(f"{guess}  →  ● {h['exact']} / ○ {h['misplaced']}")
-                st.caption("● 색과 위치 모두 일치 · ○ 색은 있지만 위치가 다름")
-                if st.button("🔐 암호 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                            treasure_puzzle_action("swap", i); st.rerun()
+
+                if st.button(
+                    "✅ 순서 검사",
+                    key=f"treasure_check_{game['id']}_{attempts}",
+                    use_container_width=True,
+                    type="primary",
+                ):
                     check_treasure_minigame(); st.rerun()
 
             # 9) 숫자 타일 슬라이딩
