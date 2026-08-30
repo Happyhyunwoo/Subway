@@ -160,49 +160,98 @@ def build_train_svg(label: str, kind: str, body: str, stripe: str, nose: str, ou
     return " ".join(svg.split())
 
 
+def image_file_data_uri(candidates, fallback_uri):
+    """같은 폴더의 실제 열차 사진을 data URI로 읽고, 없으면 기존 SVG를 사용합니다."""
+    for fname in candidates:
+        p = APP_DIR / fname
+        if p.exists():
+            mime = "image/png" if p.suffix.lower() == ".png" else "image/jpeg"
+            encoded = base64.b64encode(p.read_bytes()).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+    return fallback_uri
+
+
 TRAIN_TYPES = {
     "KTX 청룡": {
         "name": "KTX 청룡",
         "emoji": "🚄",
         "color": "#1270d8",
         "glow": "rgba(18,112,216,.85)",
-        "image": svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
-    },
-    "SRT": {
-        "name": "SRT",
-        "emoji": "🚅",
-        "color": "#8e44ad",
-        "glow": "rgba(142,68,173,.85)",
-        "image": svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
+        "image": image_file_data_uri(
+            ["train_ktx_cheongryong.png", "1. 청룡.png"],
+            svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
+        ),
     },
     "무궁화호": {
         "name": "무궁화호",
         "emoji": "🚆",
         "color": "#d35454",
         "glow": "rgba(211,84,84,.85)",
-        "image": svg_data_uri(build_train_svg("무궁화", "shinkansen", "#c44747", "#f4d03f", "#fff6ec", "#8a3b3b")),
+        "image": image_file_data_uri(
+            ["train_mugunghwa.png", "2. 무궁화호.png"],
+            svg_data_uri(build_train_svg("무궁화", "shinkansen", "#c44747", "#f4d03f", "#fff6ec", "#8a3b3b")),
+        ),
+    },
+    "SRT": {
+        "name": "SRT",
+        "emoji": "🚅",
+        "color": "#8e44ad",
+        "glow": "rgba(142,68,173,.85)",
+        "image": image_file_data_uri(
+            ["train_srt.png", "3. SRT.png"],
+            svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
+        ),
     },
 }
 
 
-def render_train_preview_gallery(selected_train: str) -> str:
-    # Streamlit의 Markdown 파서가 들여쓰기된 HTML을 코드 블록으로 해석하지 않도록
-    # 미리보기 HTML을 줄바꿈/선행 공백 없는 한 줄 문자열로 만듭니다.
+def get_train_choice_from_query():
+    """사진 카드 클릭으로 전달된 열차 선택 값을 읽습니다."""
+    try:
+        value = st.query_params.get("train")
+    except Exception:
+        try:
+            value = st.experimental_get_query_params().get("train")
+        except Exception:
+            value = None
+    if isinstance(value, list):
+        value = value[-1] if value else None
+    return normalize_train_key(value) if value else None
+
+
+def render_train_choice_gallery(selected_train: str, enabled: bool = True) -> str:
+    """실제 열차 사진을 클릭해 말을 고르는 카드형 선택 UI를 만듭니다."""
     cards = []
     for key, train in TRAIN_TYPES.items():
-        border = train["color"] if key == selected_train else "rgba(255,255,255,.15)"
-        shadow = train["glow"] if key == selected_train else "rgba(0,0,0,.12)"
-        card = (
-            f"<div style='flex:1;min-width:0;background:rgba(255,255,255,.05);"
-            f"border:2px solid {border};border-radius:14px;padding:8px 6px;"
-            f"text-align:center;box-shadow:0 0 16px {shadow};'>"
+        selected = key == selected_train
+        border = train["color"] if selected else "rgba(255,255,255,.20)"
+        shadow = train["glow"] if selected else "rgba(0,0,0,.16)"
+        badge = "✓ 선택됨" if selected else "사진을 클릭해 선택"
+        opacity = "1" if enabled else ".72"
+        cursor = "pointer" if enabled else "default"
+        card_body = (
+            f"<div style='background:rgba(255,255,255,.055);border:3px solid {border};"
+            f"border-radius:15px;overflow:hidden;box-shadow:0 0 17px {shadow};"
+            f"opacity:{opacity};cursor:{cursor};transition:transform .15s ease,border-color .15s ease;'>"
             f"<img src='{train['image']}' alt='{key}' "
-            f"style='width:100%;max-height:56px;object-fit:contain;display:block;margin:0 auto 4px auto;'>"
-            f"<div style='font-weight:800;font-size:13px;color:white;letter-spacing:.2px'>{key}</div>"
-            f"</div>"
+            f"style='width:100%;height:126px;object-fit:cover;display:block;background:#111;'>"
+            f"<div style='padding:8px 10px 9px;text-align:center;'>"
+            f"<div style='font-weight:900;font-size:15px;color:white'>{key}</div>"
+            f"<div style='font-size:11px;margin-top:2px;color:{train['color'] if selected else '#cfc7dc'};font-weight:700'>{badge}</div>"
+            f"</div></div>"
         )
+        if enabled:
+            href = f"?train={quote(key)}"
+            card = (
+                f"<a href='{href}' target='_self' aria-label='{key} 선택' "
+                "style='display:block;text-decoration:none;color:inherit;margin:7px 0;'>"
+                + card_body
+                + "</a>"
+            )
+        else:
+            card = f"<div style='margin:7px 0'>{card_body}</div>"
         cards.append(card)
-    return "<div style='display:flex;gap:8px;margin:6px 0 4px 0'>" + "".join(cards) + "</div>"
+    return "<div style='margin:4px 0 8px'>" + "".join(cards) + "</div>"
 
 SQUARE_TYPES = {
     # 파란 칸과 보물상자 칸. 보물상자는 기존 5개 + 신규 4개 = 총 9개입니다.
@@ -226,16 +275,28 @@ TREASURE_REWARD = 30
 TREASURE_RETRY_REWARD = 20
 TREASURE_MAX_ATTEMPTS = 2
 
-TREASURE_GAME_BY_STATION = {
-    "아현": "number_signal",
-    "을지로4가": "code_lock",
-    "문래": "odd_one_out",
-    "당산": "station_order",
-    "봉천": "word_scramble",
-    "사당": "switch_track",
-    "역삼": "pattern",
-    "잠실나루": "emoji_code",
-    "잠실": "ticket_math",
+TREASURE_GAME_TYPES = [
+    "number_signal",
+    "code_lock",
+    "odd_one_out",
+    "station_order",
+    "word_scramble",
+    "switch_track",
+    "pattern",
+    "emoji_code",
+    "ticket_math",
+]
+
+TREASURE_GAME_LABELS = {
+    "number_signal": "숫자 신호 퍼즐",
+    "code_lock": "암호 자물쇠",
+    "odd_one_out": "다른 것 찾기",
+    "station_order": "역 순서 퍼즐",
+    "word_scramble": "글자 조립",
+    "switch_track": "선로 스위치",
+    "pattern": "반복 패턴",
+    "emoji_code": "이모지 암호",
+    "ticket_math": "티켓 계산",
 }
 
 
@@ -260,9 +321,14 @@ def make_choice_puzzle(title, prompt, correct, distractors, icon="🧩", hint=""
     }
 
 
-def build_treasure_puzzle(station_name):
-    """보물상자 역마다 서로 다른 종류의 간단한 퍼즐을 생성합니다."""
-    game_type = TREASURE_GAME_BY_STATION.get(station_name, "number_signal")
+def build_treasure_puzzle(station_name, game_type=None):
+    """보물상자에 도착할 때마다 9종 중 하나를 랜덤으로 골라 퍼즐을 생성합니다."""
+    if game_type not in TREASURE_GAME_TYPES:
+        # 바로 직전에 나온 유형은 가능하면 피해서 연속 중복을 줄입니다.
+        previous = st.session_state.get("last_treasure_game_type")
+        candidates = [g for g in TREASURE_GAME_TYPES if g != previous] or TREASURE_GAME_TYPES
+        game_type = random.choice(candidates)
+    st.session_state.last_treasure_game_type = game_type
 
     if game_type == "number_signal":
         start_num = random.randint(1, 4)
@@ -762,6 +828,7 @@ def init_game(keep_name=True):
     st.session_state.ghost_game        = None
     st.session_state.treasure_game     = None
     st.session_state.pending_treasure  = None
+    st.session_state.last_treasure_game_type = None
     st.session_state.pending_post_move = None
     st.session_state.post_move_delay   = 0.0
     st.session_state.treasure_effect   = None
@@ -905,9 +972,9 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
 
 
 
-def begin_treasure_minigame(station_name, resume):
-    """보물상자 칸에 도착하면 역별 퍼즐을 시작합니다."""
-    puzzle = build_treasure_puzzle(station_name)
+def begin_treasure_minigame(station_name, resume, puzzle=None):
+    """보물상자 칸에 도착하면 도착 시 미리 랜덤 선택된 퍼즐을 시작합니다."""
+    puzzle = puzzle or build_treasure_puzzle(station_name)
     st.session_state.treasure_game = {
         "id": random.randint(100000, 999999),
         "station": station_name,
@@ -1099,14 +1166,22 @@ def continue_after_forward(base_msg, double_quiz, did_win):
     pending_treasure = st.session_state.get("pending_treasure")
     if pending_treasure:
         st.session_state.pending_treasure = None
+        if isinstance(pending_treasure, dict):
+            treasure_station = pending_treasure.get("station", STATIONS[st.session_state.position])
+            treasure_puzzle = pending_treasure.get("puzzle")
+        else:
+            # 이전 버전 세션 호환
+            treasure_station = pending_treasure
+            treasure_puzzle = None
         begin_treasure_minigame(
-            pending_treasure,
+            treasure_station,
             {
                 "kind": "forward",
                 "base_msg": base_msg,
                 "double_quiz": double_quiz,
                 "did_win": did_win,
             },
+            puzzle=treasure_puzzle,
         )
         return
 
@@ -1233,25 +1308,22 @@ def apply_square_event(station_name, pos):
             messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
 
     elif sq == "treasure":
-        # 즉시 보상을 주지 않습니다. 유령 접촉 처리가 끝난 뒤 역별 미니게임을 시작하고,
-        # 퍼즐을 클리어했을 때만 점수를 지급합니다.
-        st.session_state.pending_treasure = station_name
-        game_name = TREASURE_GAME_BY_STATION.get(station_name, "number_signal")
-        game_labels = {
-            "number_signal": "숫자 신호 퍼즐",
-            "code_lock": "암호 자물쇠",
-            "odd_one_out": "다른 것 찾기",
-            "station_order": "역 순서 퍼즐",
-            "word_scramble": "글자 조립",
-            "switch_track": "선로 스위치",
-            "pattern": "반복 패턴",
-            "emoji_code": "이모지 암호",
-            "ticket_math": "티켓 계산",
+        # 보물상자 위치와 퍼즐 유형은 분리합니다. 같은 역에 다시 도착해도
+        # 9종 퍼즐 중 하나가 새로 랜덤 선택됩니다. 이동 애니메이션이 끝난 뒤 이 퍼즐을 엽니다.
+        puzzle = build_treasure_puzzle(station_name)
+        game_name = st.session_state.get("last_treasure_game_type", "number_signal")
+        st.session_state.pending_treasure = {
+            "station": station_name,
+            "game_type": game_name,
+            "puzzle": puzzle,
         }
         messages.append(
-            f"🎁 보물상자 발견! **{game_labels.get(game_name, '퍼즐')}**을 클리어해야 점수를 받을 수 있어요."
+            f"🎁 보물상자 발견! 이번에는 **{TREASURE_GAME_LABELS.get(game_name, '랜덤 퍼즐')}**이 나왔어요. "
+            "말이 도착하면 도전할 수 있습니다."
         )
-        add_event_log(f"🎁 {station_name}역 보물상자 발견 — 미니게임 대기")
+        add_event_log(
+            f"🎁 {station_name}역 보물상자 발견 — {TREASURE_GAME_LABELS.get(game_name, '랜덤 퍼즐')} 대기"
+        )
 
     return "\n\n".join(messages) if messages else None, double_quiz, ghost_penalty
 
@@ -2367,24 +2439,27 @@ with st.sidebar:
 
         st.subheader("🚄 내 열차 선택")
         train_keys = list(TRAIN_TYPES.keys())
+        current_phase_for_train = st.session_state.get("game_phase", "start")
+        train_choice_enabled = current_phase_for_train in ("start", "game_over")
+
         if "train_selector" not in st.session_state or st.session_state.train_selector not in train_keys:
             st.session_state.train_selector = normalize_train_key(
                 st.session_state.get("selected_train", "KTX 청룡")
             )
-        current_phase_for_train = st.session_state.get("game_phase", "start")
+
+        # 사진을 클릭하면 ?train=... 쿼리로 같은 앱이 다시 열리고, 그 값을 선택 상태로 반영합니다.
+        requested_train = get_train_choice_from_query()
+        if train_choice_enabled and requested_train in train_keys:
+            st.session_state.train_selector = requested_train
+
+        st.session_state.selected_train = normalize_train_key(st.session_state.train_selector)
+        st.caption("아래 열차 사진을 직접 클릭해 말을 선택하세요.")
         st.markdown(
-            render_train_preview_gallery(st.session_state.train_selector),
+            render_train_choice_gallery(st.session_state.selected_train, enabled=train_choice_enabled),
             unsafe_allow_html=True,
         )
-        chosen_train = st.radio(
-            "함께 달릴 열차를 골라 주세요!",
-            train_keys,
-            key="train_selector",
-            horizontal=True,
-            format_func=lambda key: key,
-            disabled=current_phase_for_train not in ("start", "game_over"),
-        )
-        st.session_state.selected_train = normalize_train_key(chosen_train)
+        if not train_choice_enabled:
+            st.caption("게임 중에는 열차 선택이 잠겨 있습니다.")
 
         st.subheader("📚 퀴즈 카테고리")
         all_cats = QUIZ_CATEGORIES
