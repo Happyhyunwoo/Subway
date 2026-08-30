@@ -569,70 +569,70 @@ ITEMS = {
     "score_up":     {"name": "💎 점수 2배 카드", "desc": "다음 정답 점수 2배"},
 }
 
-QUIZ_CATEGORIES = ["국어", "상식", "과학", "영어", "수수께끼"]
+QUIZ_CATEGORIES = ["지명", "상식", "과학", "영어", "수수께끼"]
 
 QUIZZES = [
-    # ══════════════ 국어 (30문제 · 8세 수준) ══════════════
-    {'category': '국어', 'question': "'민지는 우산을 챙겼지만 동생은 챙기지 않았습니다. 집을 나서자 비가 내리기 시작했습니다.' 이 글을 읽고 알 수 있는 것은 무엇일까요?",
-     'options': ['민지는 비를 맞을 가능성이 더 크다', '동생은 우산이 있어서 비를 피할 수 있다', '민지는 우산으로 비를 피할 수 있다', '비가 오기 전에 두 사람 모두 집에 돌아왔다'], 'answer': 2},
-    {'category': '국어', 'question': "'아침에는 하늘이 맑았지만 오후가 되자 먹구름이 몰려왔습니다.'에서 '하지만'이 나타내는 관계는 무엇일까요?",
-     'options': ['앞뒤 내용이 서로 반대됨', '앞의 일이 뒤의 원인이 됨', '같은 내용을 되풀이함', '시간 순서를 나타냄'], 'answer': 0},
-    {'category': '국어', 'question': "'수아는 도서관에서 책을 빌렸습니다. 집에 돌아와 가장 먼저 책갈피를 꽂고 읽기 시작했습니다.' 수아가 한 일을 순서대로 고른 것은?",
-     'options': ['읽기 → 책 빌리기 → 책갈피 꽂기', '책갈피 꽂기 → 책 빌리기 → 읽기', '책 빌리기 → 읽기 → 도서관 가기', '책 빌리기 → 책갈피 꽂기 → 읽기'], 'answer': 3},
-    {'category': '국어', 'question': "'바람이 세게 불어 나뭇가지가 휘청휘청 흔들렸습니다.'에서 '휘청휘청'과 가장 가까운 모습은 무엇일까요?",
-     'options': ['가만히 멈춰 있는 모습', '좌우로 크게 흔들리는 모습', '조용히 빛나는 모습', '둥글게 굴러가는 모습'], 'answer': 1},
-    {'category': '국어', 'question': "'지우는 발표를 앞두고 손에 땀이 났지만, 이름이 불리자 천천히 앞으로 걸어 나갔습니다.' 지우의 마음으로 가장 알맞은 것은?",
-     'options': ['화가 나서 발표를 거부하고 있다', '긴장되지만 용기를 내고 있다', '졸려서 빨리 집에 가고 싶다', '발표가 끝나 신이 나 있다'], 'answer': 1},
-    {'category': '국어', 'question': "다음 중 문장의 뜻이 자연스럽게 이어지도록 빈칸에 들어갈 말은? '비가 많이 왔습니다. ___ 운동회가 다음 날로 미뤄졌습니다.'",
-     'options': ['그러나', '그리고', '하지만', '그래서'], 'answer': 3},
-    {'category': '국어', 'question': "'나는 동생에게 연필을 빌려주었다.'를 동생의 입장에서 바르게 바꾼 문장은 무엇일까요?",
-     'options': ['나는 형에게서 연필을 빌렸다', '나는 형에게 연필을 빌려주었다', '형은 나에게 연필을 빌렸다', '나는 연필을 형에게 돌려주었다'], 'answer': 0},
-    {'category': '국어', 'question': '다음 중 같은 낱말이 서로 다른 뜻으로 쓰인 것은 무엇일까요?',
-     'options': ["'책을 읽다'와 '책을 펴다'", "'문을 열다'와 '창문을 열다'", "'배를 먹었다'와 '배가 고프다'", "'물을 마시다'와 '물을 따르다'"], 'answer': 2},
-    {'category': '국어', 'question': "'친구가 넘어지자 준호는 달려가 손을 내밀었습니다.' 이 문장에서 준호의 성격으로 가장 알맞은 것은?",
-     'options': ['겁이 많다', '약속을 잘 잊는다', '혼자 있기를 좋아한다', '도움을 잘 준다'], 'answer': 3},
-    {'category': '국어', 'question': "다음 문장의 중심 내용으로 가장 알맞은 것은? '우리 반은 쓰레기를 줄이기 위해 개인 물병을 사용하고, 종이는 앞뒤로 사용하기로 했습니다.'",
-     'options': ['우리 반은 물을 마시지 않는다', '우리 반은 종이만 사용한다', '우리 반은 쓰레기를 줄이려고 실천한다', '우리 반은 새 물건을 많이 산다'], 'answer': 2},
-    {'category': '국어', 'question': '다음 중 높임 표현이 가장 자연스러운 문장은 무엇일까요?',
-     'options': ['할머니가 진지를 먹어', '선생님께서 교실에 들어오셨어요', '아버지가 밥을 잡수셨어', '동생께서 놀이터에 가셨어요'], 'answer': 1},
-    {'category': '국어', 'question': "'토끼는 거북이보다 빨랐습니다. 그런데 경주에서는 거북이가 이겼습니다.' 다음에 이어질 내용으로 가장 자연스러운 것은?",
-     'options': ['왜 거북이가 이겼는지 까닭을 설명한다', '토끼의 생김새만 자세히 설명한다', '갑자기 바다 이야기를 시작한다', '경주와 관계없는 음식 이야기를 한다'], 'answer': 0},
-    {'category': '국어', 'question': '다음 중 물음표(?)가 가장 알맞게 쓰인 문장은 무엇일까요?',
-     'options': ['너는 몇 시에 집에 가니?', '오늘은 정말 신나는 날이다?', '우와, 무지개다?', '조용히 책을 읽자?'], 'answer': 0},
-    {'category': '국어', 'question': "'아버지는 늦게까지 일하셨다. 그래서 나는 조용히 문을 닫았다.'에서 내가 문을 조용히 닫은 까닭으로 가장 알맞은 것은?",
-     'options': ['문이 고장 나서', '밖에 비가 와서', '문을 열 수 없어서', '아버지가 쉬실 수 있도록'], 'answer': 3},
-    {'category': '국어', 'question': "'봄바람이 살랑살랑 불어 꽃잎이 춤을 춥니다.'에서 실제 사람처럼 표현된 것은 무엇일까요?",
-     'options': ['봄바람', '꽃잎', '춤을 춥니다라는 표현 속 꽃잎', '살랑살랑'], 'answer': 2},
-    {'category': '국어', 'question': '다음 네 문장을 자연스러운 순서로 배열한 것은? ① 씨앗을 심었다. ② 싹이 났다. ③ 물을 주었다. ④ 잎이 자랐다.',
-     'options': ['③→①→④→②', '①→③→②→④', '②→①→③→④', '①→②→④→③'], 'answer': 1},
-    {'category': '국어', 'question': "'나는 오늘도 줄넘기 연습을 했다. 어제보다 세 번 더 성공했다.' 이 글에서 알 수 있는 것은?",
-     'options': ['오늘 처음 줄넘기를 했다', '줄넘기를 하지 못했다', '어제보다 실력이 조금 늘었다', '어제보다 성공 횟수가 줄었다'], 'answer': 2},
-    {'category': '국어', 'question': '다음 중 부탁하는 말로 가장 알맞은 것은 무엇일까요?',
-     'options': ['창문을 닫아 주겠니?', '창문이 참 크구나!', '창문은 네모 모양이야.', '창문을 왜 닫았니?'], 'answer': 0},
-    {'category': '국어', 'question': "'동생은 과자를 먹고 싶었지만 저녁 식사 전이라 참았습니다.'에서 동생이 과자를 먹지 않은 까닭은?",
-     'options': ['과자를 싫어해서', '저녁 식사 전이어서', '과자가 없어서', '배가 너무 불러서'], 'answer': 1},
-    {'category': '국어', 'question': "다음 중 '발이 넓다'의 뜻으로 가장 알맞은 것은 무엇일까요?",
-     'options': ['신발 크기가 크다', '걸음이 아주 빠르다', '발가락이 길다', '아는 사람이 많다'], 'answer': 3},
-    {'category': '국어', 'question': "'이번 역에서 내리려던 민수는 안내방송을 듣고 한 정거장 더 가기로 했습니다.' 가장 알맞은 까닭은 무엇일까요?",
-     'options': ['열차가 멈추지 않았기 때문에', '안내방송에서 목적지가 다음 역이라고 알았기 때문에', '민수가 지하철을 처음 봤기 때문에', '승강장에 사람이 없었기 때문에'], 'answer': 1},
-    {'category': '국어', 'question': "'열차가 도착하자 사람들은 먼저 길을 비켜 주었습니다. 승객들이 모두 내린 뒤 차례로 탔습니다.' 이 글의 중심 내용은?",
-     'options': ['열차는 항상 늦게 온다', '승강장에서는 뛰어야 한다', '사람이 많으면 열차를 타지 않는다', '지하철에서는 내리는 사람을 먼저 배려한다'], 'answer': 3},
-    {'category': '국어', 'question': "다음 중 '환승역'이라는 낱말의 뜻을 문맥으로 가장 잘 설명한 것은?",
-     'options': ['두 개 이상의 노선으로 갈아탈 수 있는 역', '열차가 수리되는 역', '기차가 반드시 끝나는 역', '표를 살 수 없는 역'], 'answer': 0},
-    {'category': '국어', 'question': "'지하철이 터널을 빠져나오자 창밖이 갑자기 환해졌습니다.'에서 '빠져나오자'와 가장 가까운 뜻은?",
-     'options': ['안으로 들어가자', '그 자리에 멈추자', '밖으로 나오자', '뒤로 돌아가자'], 'answer': 2},
-    {'category': '국어', 'question': "다음 안내문을 읽고 알맞게 행동한 사람은? '안전선 안쪽에서 기다리고, 내리는 승객이 모두 내린 뒤 타세요.'",
-     'options': ['유나는 문이 열리자 바로 밀고 들어갔다', '민호는 안전선 밖에서 열차를 기다렸다', '지수는 사람들이 내린 뒤 차례로 탔다', '준호는 승강장에서 뛰어다녔다'], 'answer': 2},
-    {'category': '국어', 'question': "'전동차 문이 닫히려는 순간, 서준이는 뛰어들지 않고 다음 열차를 기다렸습니다.' 서준이의 행동을 가장 잘 나타내는 말은?",
-     'options': ['안전하다', '성급하다', '무례하다', '시끄럽다'], 'answer': 0},
-    {'category': '국어', 'question': "다음 문장의 빈칸에 가장 알맞은 말은? '왕십리역에서 2호선에서 내렸습니다. ___ 다른 노선으로 갈아탔습니다.'",
-     'options': ['그러나', '그래서', '왜냐하면', '그리고'], 'answer': 3},
-    {'category': '국어', 'question': "'노선도를 보니 시청역은 을지로입구역 다음에 있었습니다.' 이 문장만 보고 확실히 알 수 있는 것은?",
-     'options': ['시청역에는 사람이 가장 많다', '시청역은 을지로입구역과 이어져 있다', '을지로입구역은 종착역이다', '두 역의 거리는 정확히 1km이다'], 'answer': 1},
-    {'category': '국어', 'question': '다음 중 역무원에게 길을 물을 때 가장 알맞은 말은 무엇일까요?',
-     'options': ['강남역 가는 길 좀 알려 주세요.', '야, 강남역 어디야?', '강남역! 빨리!', '내가 왜 길을 몰라?'], 'answer': 0},
-    {'category': '국어', 'question': "'급행열차는 몇몇 역을 지나쳐 더 빨리 목적지에 도착합니다.'에서 '지나쳐'의 뜻으로 가장 알맞은 것은?",
-     'options': ['그 역에 오래 머무르다', '그 역에서 방향을 바꾸다', '그 역에 서지 않고 통과하다', '그 역에서 승객을 모두 내리게 하다'], 'answer': 2},
+    # ══════════════ 지명 (30문제 · 한국 명소 중심) ══════════════
+    {'category': '지명', 'question': '서울에서 조선 시대 왕들이 살았던 대표 궁궐로, 광화문을 지나 들어갈 수 있는 곳은 어디일까요?',
+     'options': ['경복궁', '불국사', '수원화성', '전주한옥마을'], 'answer': 0},
+    {'category': '지명', 'question': '서울 남산 정상 부근에 있어 서울 시내를 높은 곳에서 내려다볼 수 있는 전망 명소는 어디일까요?',
+     'options': ['광안대교', '남산서울타워', '성산일출봉', '첨성대'], 'answer': 1},
+    {'category': '지명', 'question': '서울 경복궁 앞에 있으며 큰 광장과 세종대왕 동상을 볼 수 있는 곳은 어디일까요?',
+     'options': ['코엑스', '청계천', '광화문', '서울숲'], 'answer': 2},
+    {'category': '지명', 'question': '서울 용산에 있으며 우리나라의 역사와 문화재를 많이 볼 수 있는 큰 박물관은 어디일까요?',
+     'options': ['철도박물관', '서울역', '동대문디자인플라자', '국립중앙박물관'], 'answer': 3},
+    {'category': '지명', 'question': '경기도 수원에 있는 조선 시대 성곽으로, 긴 성벽을 따라 걸어볼 수 있는 세계유산은 어디일까요?',
+     'options': ['수원화성', '경복궁', '첨성대', '안동하회마을'], 'answer': 0},
+    {'category': '지명', 'question': '경상북도 경주에 있으며 석가탑과 다보탑으로도 유명한 절은 어디일까요?',
+     'options': ['해인사', '불국사', '봉은사', '조계사'], 'answer': 1},
+    {'category': '지명', 'question': '부산에서 넓은 모래사장과 바다로 유명한 대표 해수욕장은 어디일까요?',
+     'options': ['경포대해수욕장', '을왕리해수욕장', '해운대해수욕장', '대천해수욕장'], 'answer': 2},
+    {'category': '지명', 'question': '제주도 동쪽에 있으며 정상에서 해가 떠오르는 모습을 보기 좋은 커다란 화산 지형은 어디일까요?',
+     'options': ['한라산', '설악산', '남산', '성산일출봉'], 'answer': 3},
+    {'category': '지명', 'question': '제주도 한가운데에 있으며 우리나라에서 가장 높은 산은 어디일까요?',
+     'options': ['한라산', '북한산', '지리산', '설악산'], 'answer': 0},
+    {'category': '지명', 'question': '전라북도 전주에 있으며 한옥이 많이 모여 있어 전통적인 거리 풍경을 볼 수 있는 곳은 어디일까요?',
+     'options': ['북촌한옥마을', '전주한옥마을', '감천문화마을', '인사동'], 'answer': 1},
+    {'category': '지명', 'question': '경상북도 안동에 있으며 전통 한옥과 옛 마을 모습을 간직한 세계유산 마을은 어디일까요?',
+     'options': ['전주한옥마을', '남산골한옥마을', '안동하회마을', '북촌한옥마을'], 'answer': 2},
+    {'category': '지명', 'question': '강원도에 있으며 울산바위와 단풍으로 유명한 국립공원 산은 어디일까요?',
+     'options': ['한라산', '북한산', '남산', '설악산'], 'answer': 3},
+    {'category': '지명', 'question': '부산의 바다 위를 가로지르며 밤에 불빛이 아름다운 큰 다리는 어디일까요?',
+     'options': ['광안대교', '성산대교', '한강대교', '인천대교'], 'answer': 0},
+    {'category': '지명', 'question': '대한민국의 대표 국제공항으로, 해외로 비행기를 타고 갈 때 많이 이용하는 공항은 어디일까요?',
+     'options': ['김포국제공항', '인천국제공항', '제주국제공항', '김해국제공항'], 'answer': 1},
+    {'category': '지명', 'question': '서울 동대문에 있으며 독특한 곡선 모양 건물과 전시·행사로 유명한 곳은 어디일까요?',
+     'options': ['국립중앙박물관', '잠실롯데타워', '동대문디자인플라자', '경복궁'], 'answer': 2},
+    {'category': '지명', 'question': '서울 삼성동에 있으며 큰 전시장, 쇼핑몰, 별마당도서관 등이 모여 있는 곳은 어디일까요?',
+     'options': ['서울숲', '광화문', '하남스타필드', '코엑스'], 'answer': 3},
+    {'category': '지명', 'question': '서울 도심을 흐르며 산책로가 잘 만들어져 있어 사람들이 걸으며 쉬기 좋은 하천은 어디일까요?',
+     'options': ['청계천', '낙동강', '섬진강', '소양강'], 'answer': 0},
+    {'category': '지명', 'question': '서울에 있는 과학고등학교 중 하나로, 과학과 수학에 관심이 많은 학생들이 공부하는 학교는 어디일까요?',
+     'options': ['연세대학교', '한성과학고', '세브란스병원', '국립중앙박물관'], 'answer': 1},
+    {'category': '지명', 'question': '서울 신촌에 있는 대학교로, 독수리를 상징으로 사용하며 오래된 캠퍼스로도 잘 알려진 곳은 어디일까요?',
+     'options': ['서울대학교', '고려대학교', '연세대학교', '이화여자대학교'], 'answer': 2},
+    {'category': '지명', 'question': '서울 신촌에서 연세대학교와 연결되어 있으며 많은 환자를 진료하는 큰 병원은 어디일까요?',
+     'options': ['서울역', '한성과학고', '하남스타필드', '세브란스병원'], 'answer': 3},
+    {'category': '지명', 'question': "이름에 '곤지'와 아기들이 손뼉 치며 하는 '잼잼'이 함께 들어가는 어린이집 이름은 무엇일까요?",
+     'options': ['곤지잼잼어린이집', '하남스타필드', '한성과학고', '서울숲'], 'answer': 0},
+    {'category': '지명', 'question': '경주에 있으며 신라 시대 사람들이 별과 하늘을 관찰하는 데 사용한 것으로 알려진 돌로 만든 천문 관측 유적은 어디일까요?',
+     'options': ['다보탑', '첨성대', '광화문', '수원화성'], 'answer': 1},
+    {'category': '지명', 'question': '경기도 하남에 있으며 쇼핑, 식사, 놀이를 한곳에서 즐길 수 있는 매우 큰 복합 쇼핑 공간은 어디일까요?',
+     'options': ['코엑스', '동대문디자인플라자', '하남스타필드', '인천국제공항'], 'answer': 2},
+    {'category': '지명', 'question': '서울 잠실에 있으며 아주 높은 전망대와 쇼핑 공간이 있는 초고층 건물로 잘 알려진 곳은 어디일까요?',
+     'options': ['남산서울타워', '63빌딩', '에펠탑', '잠실롯데타워'], 'answer': 3},
+    {'category': '지명', 'question': '레고기차, KTX, 무궁화호가 모여 있고, 공항과 캠핑 장소도 있는 곳은 어디일까요?',
+     'options': ['주안랜드', '서울역', '철도박물관', '하남스타필드'], 'answer': 0},
+    {'category': '지명', 'question': '일본 사이타마에 있으며 실제 철도 차량과 철도의 역사를 보고 체험할 수 있는 곳은 어디일까요?',
+     'options': ['도쿄타워', '일본의 철도박물관', '오사카성', '후지산'], 'answer': 1},
+    {'category': '지명', 'question': '프랑스 파리에 있는 거대한 철제 탑으로, 파리를 대표하는 명소는 무엇일까요?',
+     'options': ['개선문', '루브르박물관', '에펠탑', '콜로세움'], 'answer': 2},
+    {'category': '지명', 'question': '프랑스 파리의 샹젤리제 거리 끝쪽에 있는 거대한 문 모양의 기념물은 무엇일까요?',
+     'options': ['에펠탑', '자유의 여신상', '빅벤', '개선문'], 'answer': 3},
+    {'category': '지명', 'question': '미국 뉴욕항에 있으며 한 손에 횃불을 들고 있는 거대한 동상은 무엇일까요?',
+     'options': ['자유의 여신상', '에펠탑', '개선문', '피사의 사탑'], 'answer': 0},
+    {'category': '지명', 'question': '서울 성동구에 있는 큰 공원으로, 나무와 산책길이 많아 도심 속에서 자연을 즐기기 좋은 곳은 어디일까요?',
+     'options': ['북한산', '서울숲', '광화문', '코엑스'], 'answer': 1},
 
     # ══════════════ 상식 (30문제 · 8세 수준) ══════════════
     {'category': '상식', 'question': '우리나라의 수도는 서울입니다. 그렇다면 서울시청이 하는 일과 가장 가까운 것은 무엇일까요?',
@@ -967,13 +967,19 @@ def get_map_bytes():
 
 
 def selected_categories():
-    cats = st.session_state.get("selected_categories", QUIZ_CATEGORIES)
+    cats = list(st.session_state.get("selected_categories", QUIZ_CATEGORIES) or QUIZ_CATEGORIES)
+    # 이전 버전의 '국어' 선택은 새 '지명' 카테고리 선택으로 자동 이전합니다.
+    if "국어" in cats and "지명" not in cats:
+        cats = ["지명" if c == "국어" else c for c in cats]
+    cats = [c for c in cats if c in QUIZ_CATEGORIES]
     return cats or QUIZ_CATEGORIES
 
 
 QUIZ_RECENT_MEMORY = 20
 QUIZ_USED_QUERY_KEY = "qu"
 QUIZ_RECENT_QUERY_KEY = "qr"
+QUIZ_VERSION_QUERY_KEY = "qv"
+QUIZ_BANK_VERSION = "places_v1"
 
 
 def _read_persistent_quiz_state():
@@ -991,6 +997,11 @@ def _read_persistent_quiz_state():
         except (TypeError, ValueError):
             used = set()
 
+    # 이번 버전에서 0~29번은 '국어'에서 완전히 새로운 '지명' 문제로 교체되었습니다.
+    # 이전 URL 기록을 그대로 쓰면 새 문제를 이미 본 것으로 오인하므로 이 30개만 새로 열어 둡니다.
+    if get_query_value(QUIZ_VERSION_QUERY_KEY) != QUIZ_BANK_VERSION:
+        used = {i for i in used if i >= 30}
+
     recent = []
     raw_recent = get_query_value(QUIZ_RECENT_QUERY_KEY)
     if raw_recent:
@@ -1001,6 +1012,8 @@ def _read_persistent_quiz_state():
                 continue
             if 0 <= idx < len(QUIZZES) and idx not in recent:
                 recent.append(idx)
+    if get_query_value(QUIZ_VERSION_QUERY_KEY) != QUIZ_BANK_VERSION:
+        recent = [i for i in recent if i >= 30]
     return used, recent[-QUIZ_RECENT_MEMORY:]
 
 
@@ -1021,12 +1034,24 @@ def _write_persistent_quiz_state():
         **{
             QUIZ_USED_QUERY_KEY: format(mask, "x") if mask else None,
             QUIZ_RECENT_QUERY_KEY: ".".join(map(str, recent)) if recent else None,
+            QUIZ_VERSION_QUERY_KEY: QUIZ_BANK_VERSION,
         }
     )
 
 
 def ensure_quiz_rotation_state():
     """게임 재시작과 브라우저 새로고침에도 이어지는 퀴즈 덱 상태를 준비합니다."""
+    # 문제 은행이 바뀐 첫 실행에서는 기존 국어 30문의 사용 기록만 비우고
+    # 상식·과학·영어·수수께끼의 기록은 그대로 유지합니다.
+    if st.session_state.get("quiz_bank_version") != QUIZ_BANK_VERSION:
+        persisted_used, persisted_recent = _read_persistent_quiz_state()
+        st.session_state.quiz_used_indices = sorted(persisted_used)
+        st.session_state.quiz_recent_indices = persisted_recent
+        st.session_state.quiz_decks = {}
+        st.session_state.quiz_category_cycle = []
+        st.session_state.quiz_bank_version = QUIZ_BANK_VERSION
+        _write_persistent_quiz_state()
+
     if "quiz_decks" not in st.session_state or not isinstance(st.session_state.quiz_decks, dict):
         st.session_state.quiz_decks = {}
     if "quiz_category_cycle" not in st.session_state or not isinstance(st.session_state.quiz_category_cycle, list):
@@ -3400,7 +3425,7 @@ with st.sidebar:
             st.subheader(title)
             if st.session_state.score_x2:
                 st.warning("💎 점수 2배 활성화! 정답 시 20점!")
-            cat_colors = {"국어": "🟢", "상식": "🟡", "과학": "🟠", "영어": "🔴", "수수께끼": "🟣"}
+            cat_colors = {"지명": "📍", "상식": "🟡", "과학": "🟠", "영어": "🔴", "수수께끼": "🟣"}
             icon = cat_colors.get(quiz['category'], '⚪')
             st.info(f"{icon} [{quiz['category']}]\n\n**{quiz['question']}**")
             for opt_idx, opt in enumerate(quiz["options"]):
@@ -3506,8 +3531,11 @@ with st.sidebar:
         if "selected_categories" not in st.session_state:
             st.session_state.selected_categories = all_cats[:]
         else:
+            previous_categories = list(st.session_state.selected_categories)
+            if "국어" in previous_categories and "지명" not in previous_categories:
+                previous_categories = ["지명" if c == "국어" else c for c in previous_categories]
             st.session_state.selected_categories = [
-                c for c in st.session_state.selected_categories if c in all_cats
+                c for c in previous_categories if c in all_cats
             ]
         for cat in all_cats:
             checked = cat in st.session_state.selected_categories
