@@ -863,7 +863,9 @@ def init_game(keep_name=True):
     st.session_state.game_phase        = "start"
     st.session_state.current_quiz      = None
     st.session_state.quiz_queue        = []
-    st.session_state.used_quiz_indices = []
+    # 퀴즈 덱(quiz_decks), 카테고리 순환(quiz_category_cycle), 최근 문제 기록은
+    # 새 게임을 시작해도 유지합니다. 따라서 직전 게임의 문제들이 곧바로
+    # 다시 출제되지 않습니다.
     st.session_state.last_dice_value   = None
     st.session_state.last_message      = "왼쪽 사이드바에서 게임을 시작하세요."
     st.session_state.winner            = False
@@ -897,6 +899,9 @@ if "position" not in st.session_state:
     init_game(keep_name=False)
 
 
+# 퀴즈 회전 상태는 게임 상태와 별도로 유지됩니다. 함수 정의 전에는 생성할 수 없으므로
+# 실제 첫 퀴즈를 뽑을 때 ensure_quiz_rotation_state()에서 초기화합니다.
+
 def start_game():
     name = st.session_state.get("player_name", "플레이어")
     train_key = normalize_train_key(st.session_state.get("selected_train", "KTX 청룡"))
@@ -924,18 +929,103 @@ def selected_categories():
     return cats or QUIZ_CATEGORIES
 
 
+QUIZ_RECENT_MEMORY = 15
+
+
+def ensure_quiz_rotation_state():
+    """게임 재시작과 무관하게 유지되는 퀴즈 셔플 덱 상태를 준비합니다."""
+    if "quiz_decks" not in st.session_state or not isinstance(st.session_state.quiz_decks, dict):
+        st.session_state.quiz_decks = {}
+    if "quiz_category_cycle" not in st.session_state or not isinstance(st.session_state.quiz_category_cycle, list):
+        st.session_state.quiz_category_cycle = []
+    if "quiz_recent_indices" not in st.session_state or not isinstance(st.session_state.quiz_recent_indices, list):
+        st.session_state.quiz_recent_indices = []
+
+    # 코드 업데이트로 문제 수/카테고리가 바뀐 경우 오래된 세션 덱을 안전하게 정리합니다.
+    valid_by_category = {
+        cat: {i for i, q in enumerate(QUIZZES) if q["category"] == cat}
+        for cat in QUIZ_CATEGORIES
+    }
+    cleaned = {}
+    for cat, deck in st.session_state.quiz_decks.items():
+        if cat not in valid_by_category or not isinstance(deck, list):
+            continue
+        valid = valid_by_category[cat]
+        if all(isinstance(i, int) and i in valid for i in deck) and len(deck) == len(set(deck)):
+            cleaned[cat] = deck
+    st.session_state.quiz_decks = cleaned
+    st.session_state.quiz_recent_indices = [
+        i for i in st.session_state.quiz_recent_indices
+        if isinstance(i, int) and 0 <= i < len(QUIZZES)
+    ][-QUIZ_RECENT_MEMORY:]
+
+
+def refill_quiz_deck(category):
+    """한 카테고리의 모든 문제를 섞어 새 덱을 만듭니다. 최근 문제는 뒤쪽에 둡니다."""
+    indices = [i for i, q in enumerate(QUIZZES) if q["category"] == category]
+    if not indices:
+        return []
+
+    recent = set(st.session_state.quiz_recent_indices)
+    fresh = [i for i in indices if i not in recent]
+    delayed = [i for i in indices if i in recent]
+    random.shuffle(fresh)
+    random.shuffle(delayed)
+
+    # 직전에 본 문제들은 새 덱의 뒤쪽으로 보내 재순환 직후의 반복을 방지합니다.
+    deck = fresh + delayed
+    st.session_state.quiz_decks[category] = deck
+    return deck
+
+
+def next_quiz_category(categories):
+    """선택한 카테고리를 한 사이클에 한 번씩 사용해 영역 쏠림을 막습니다."""
+    selected = list(dict.fromkeys(categories))
+    if not selected:
+        selected = QUIZ_CATEGORIES[:]
+
+    cycle = [c for c in st.session_state.quiz_category_cycle if c in selected]
+
+    # 현재 사이클에 아직 들어오지 않은 새 선택 카테고리를 추가합니다.
+    missing = [c for c in selected if c not in cycle]
+    random.shuffle(missing)
+    cycle.extend(missing)
+
+    if not cycle:
+        cycle = selected[:]
+        random.shuffle(cycle)
+
+    category = cycle.pop(0)
+    st.session_state.quiz_category_cycle = cycle
+    return category
+
+
 def get_random_quiz():
+    """카테고리 균형 + 카테고리별 비복원 셔플 덱 방식으로 다음 퀴즈를 반환합니다."""
+    ensure_quiz_rotation_state()
     categories = selected_categories()
-    candidate = [i for i, q in enumerate(QUIZZES) if q["category"] in categories]
-    if not candidate:
-        candidate = list(range(len(QUIZZES)))
-    used = set(st.session_state.used_quiz_indices)
-    available = [i for i in candidate if i not in used]
-    if not available:
-        st.session_state.used_quiz_indices = []
-        available = candidate[:]
-    idx = random.choice(available)
-    st.session_state.used_quiz_indices.append(idx)
+    category = next_quiz_category(categories)
+
+    deck = st.session_state.quiz_decks.get(category, [])
+    if not deck:
+        deck = refill_quiz_deck(category)
+
+    # 혹시 선택 카테고리에 문제가 하나도 없는 비정상 상태라면 전체 문제에서 안전하게 선택합니다.
+    if not deck:
+        fallback = [i for i, q in enumerate(QUIZZES) if q["category"] in categories]
+        if not fallback:
+            fallback = list(range(len(QUIZZES)))
+        random.shuffle(fallback)
+        deck = fallback
+
+    idx = deck.pop(0)
+    if category in st.session_state.quiz_decks:
+        st.session_state.quiz_decks[category] = deck
+
+    recent = st.session_state.quiz_recent_indices
+    recent.append(idx)
+    st.session_state.quiz_recent_indices = recent[-QUIZ_RECENT_MEMORY:]
+
     quiz = QUIZZES[idx].copy()
     quiz["quiz_id"] = idx
     return quiz
