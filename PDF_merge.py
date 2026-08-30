@@ -181,6 +181,11 @@ TRAIN_TYPES = {
             ["train_ktx_cheongryong.png", "1. 청룡.png"],
             svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
         ),
+        # 말 이동에는 작은 전용 이미지를 사용해 브라우저 재도색 비용을 줄입니다.
+        "token_image": image_file_data_uri(
+            ["train_ktx_cheongryong_token.png"],
+            svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
+        ),
     },
     "무궁화호": {
         "name": "무궁화호",
@@ -191,6 +196,10 @@ TRAIN_TYPES = {
             ["train_mugunghwa.png", "2. 무궁화호.png"],
             svg_data_uri(build_train_svg("무궁화", "shinkansen", "#c44747", "#f4d03f", "#fff6ec", "#8a3b3b")),
         ),
+        "token_image": image_file_data_uri(
+            ["train_mugunghwa_token.png"],
+            svg_data_uri(build_train_svg("무궁화", "shinkansen", "#c44747", "#f4d03f", "#fff6ec", "#8a3b3b")),
+        ),
     },
     "SRT": {
         "name": "SRT",
@@ -199,6 +208,10 @@ TRAIN_TYPES = {
         "glow": "rgba(142,68,173,.85)",
         "image": image_file_data_uri(
             ["train_srt.png", "3. SRT.png"],
+            svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
+        ),
+        "token_image": image_file_data_uri(
+            ["train_srt_token.png"],
             svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
         ),
     },
@@ -1860,10 +1873,12 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #right-col{{width:200px;display:flex;flex-direction:column;gap:8px}}
 #board-container{{position:relative;width:100%;aspect-ratio:{ORIGINAL_WIDTH}/{ORIGINAL_HEIGHT};border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
-.token{{position:absolute;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate(-50%,-50%)}}
+.token{{position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate3d(-200px,-200px,0);will-change:transform;backface-visibility:hidden;contain:layout paint style}}
 .train-token{{width:68px;height:38px;border-radius:18px;background:rgba(255,255,255,.96);padding:3px 5px;overflow:hidden}}
-#token-player img{{width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}}
+#token-player img{{width:100%;height:100%;object-fit:contain;display:block;transform:translateZ(0);backface-visibility:hidden}}
 #token-player{{box-shadow:0 0 14px 4px rgba(47,128,237,.9);animation:playerPulse 1.4s ease-in-out infinite}}
+#token-player.is-moving{{animation:none!important;box-shadow:0 0 9px 2px rgba(47,128,237,.65)!important}}
+#token-binbou.is-moving{{animation:none!important;box-shadow:0 0 9px 2px rgba(142,68,173,.65)!important}}
 #token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
 @keyframes binbouPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(255,0,100,.8)}}50%{{box-shadow:0 0 24px 10px rgba(255,0,100,.3)}}}}
@@ -2035,7 +2050,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX 청룡';
   if(d.train){{
     if(playerImg){{
-      playerImg.src=d.train.image||'';
+      playerImg.src=d.train.token_image||d.train.image||'';
       playerImg.alt=d.train.name||'열차';
     }}
     tokenPlayer.style.borderColor=d.train.color||'#2f80ed';
@@ -2054,8 +2069,28 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   }}
 
   function placeTokenAt(el,xPct,yPct){{
-    el.style.left=xPct+'%';
-    el.style.top=yPct+'%';
+    // left/top를 매 프레임 바꾸면 레이아웃 계산이 발생할 수 있습니다.
+    // 컨테이너 픽셀 좌표로 변환해 transform만 갱신하면 합성 단계에서 훨씬 부드럽게 이동합니다.
+    const w=container.clientWidth||container.offsetWidth||1;
+    const h=container.clientHeight||container.offsetHeight||1;
+    const x=w*(Number(xPct)||0)/100;
+    const y=h*(Number(yPct)||0)/100;
+    el.dataset.xPct=String(xPct);
+    el.dataset.yPct=String(yPct);
+    el.style.transform='translate3d('+x+'px,'+y+'px,0) translate(-50%,-50%)';
+  }}
+
+  function refreshTokenPositions(){{
+    [tokenPlayer,tokenBinbou].forEach(el=>{{
+      if(!el||el.dataset.xPct==null||el.dataset.yPct==null)return;
+      placeTokenAt(el,Number(el.dataset.xPct),Number(el.dataset.yPct));
+    }});
+  }}
+  if(window.ResizeObserver){{
+    const ro=new ResizeObserver(refreshTokenPositions);
+    ro.observe(container);
+  }} else {{
+    window.addEventListener('resize',refreshTokenPositions,{{passive:true}});
   }}
 
   function drawDots(){{
@@ -2122,16 +2157,21 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       if(pt)placeTokenAt(tokenPlayer,pt.x,pt.y);
       doneCallback&&doneCallback();return;
     }}
+    tokenPlayer.classList.add('is-moving');
     const ctrl=buildSpline(pathIndices);
-    const SAMPLES=Math.max(60,pathIndices.length*20);
+    const SAMPLES=Math.max(90,pathIndices.length*28);
     const curve=sampleSpline(ctrl,SAMPLES);
     const finalName=d.stations[pathIndices[pathIndices.length-1]];
     const TOTAL_MS=Math.min(pathIndices.length*220,2000);
     const t0=performance.now();
     function frame(now){{
       const elapsed=now-t0,rawT=Math.min(elapsed/TOTAL_MS,1),eased=easeInOut5(rawT);
-      const idx=Math.min(Math.floor(eased*(curve.length-1)),curve.length-1);
-      const pt=curve[idx];
+      const curvePos=eased*(curve.length-1);
+      const idx=Math.min(Math.floor(curvePos),curve.length-1);
+      const nextIdx=Math.min(idx+1,curve.length-1);
+      const frac=curvePos-idx;
+      const a=curve[idx],b=curve[nextIdx];
+      const pt={{x:a.x+(b.x-a.x)*frac,y:a.y+(b.y-a.y)*frac}};
       placeTokenAt(tokenPlayer,pt.x,pt.y);
       if(rawT>0.8){{
         const fp=d.points[finalName];
@@ -2141,6 +2181,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       else{{
         const snap=d.points[finalName];
         if(snap){{placeTokenAt(tokenPlayer,snap.x,snap.y);label.textContent=finalName;label.style.left=snap.x+'%';label.style.top=snap.y+'%';label.style.display='block';}}
+        tokenPlayer.classList.remove('is-moving');
         doneCallback&&doneCallback();
       }}
     }}
@@ -2298,20 +2339,26 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       if(pt)placeTokenAt(tokenBinbou,pt.x,pt.y);
       doneCallback&&doneCallback();return;
     }}
+    tokenBinbou.classList.add('is-moving');
     const ctrl=buildSpline(pathIndices);
-    const curve=sampleSpline(ctrl,Math.max(40,pathIndices.length*16));
+    const curve=sampleSpline(ctrl,Math.max(70,pathIndices.length*22));
     const finalName=d.stations[pathIndices[pathIndices.length-1]];
     const totalMs=Math.min(pathIndices.length*170,1500);
     const t0=performance.now();
     function frame(now){{
       const rawT=Math.min((now-t0)/totalMs,1),eased=easeInOut5(rawT);
-      const idx=Math.min(Math.floor(eased*(curve.length-1)),curve.length-1);
-      const pt=curve[idx];
+      const curvePos=eased*(curve.length-1);
+      const idx=Math.min(Math.floor(curvePos),curve.length-1);
+      const nextIdx=Math.min(idx+1,curve.length-1);
+      const frac=curvePos-idx;
+      const a=curve[idx],b=curve[nextIdx];
+      const pt={{x:a.x+(b.x-a.x)*frac,y:a.y+(b.y-a.y)*frac}};
       placeTokenAt(tokenBinbou,pt.x,pt.y);
       if(rawT<1)requestAnimationFrame(frame);
       else{{
         const snap=d.points[finalName];
         if(snap)placeTokenAt(tokenBinbou,snap.x,snap.y);
+        tokenBinbou.classList.remove('is-moving');
         doneCallback&&doneCallback();
       }}
     }}
