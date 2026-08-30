@@ -273,197 +273,238 @@ BLUE_EVENTS = [
 
 TREASURE_REWARD = 30
 TREASURE_RETRY_REWARD = 20
-TREASURE_MAX_ATTEMPTS = 2
+TREASURE_MAX_ATTEMPTS = 3
 
+# 보물상자에서는 지식 퀴즈 대신 직접 상태를 바꾸는 퍼즐형 활동을 사용합니다.
 TREASURE_GAME_TYPES = [
-    "number_signal",
-    "code_lock",
-    "odd_one_out",
-    "station_order",
-    "word_scramble",
-    "switch_track",
-    "pattern",
-    "emoji_code",
-    "ticket_math",
+    "car_sort",
+    "switch_route",
+    "signal_grid",
+    "track_rotate",
+    "memory_pairs",
+    "maze",
+    "cargo_balance",
+    "mastermind",
+    "sliding_tiles",
 ]
 
 TREASURE_GAME_LABELS = {
-    "number_signal": "숫자 신호 퍼즐",
-    "code_lock": "암호 자물쇠",
-    "odd_one_out": "다른 것 찾기",
-    "station_order": "역 순서 퍼즐",
-    "word_scramble": "글자 조립",
-    "switch_track": "선로 스위치",
-    "pattern": "반복 패턴",
-    "emoji_code": "이모지 암호",
-    "ticket_math": "티켓 계산",
+    "car_sort": "객차 순서 맞추기",
+    "switch_route": "선로 스위치 연결",
+    "signal_grid": "신호등 불빛 퍼즐",
+    "track_rotate": "선로 타일 회전",
+    "memory_pairs": "철도 카드 짝맞추기",
+    "maze": "미니 선로 미로",
+    "cargo_balance": "화물 균형 맞추기",
+    "mastermind": "색상 암호 추리",
+    "sliding_tiles": "숫자 타일 슬라이딩",
 }
 
 
-def make_choice_puzzle(title, prompt, correct, distractors, icon="🧩", hint=""):
-    """정답 위치가 매번 달라지는 객관식 퍼즐을 만듭니다."""
-    options = [correct] + list(distractors)
-    # 중복 선택지를 제거하면서 4개를 유지합니다.
-    deduped = []
-    for option in options:
-        if option not in deduped:
-            deduped.append(option)
-    options = deduped[:4]
-    random.shuffle(options)
-    return {
-        "title": title,
-        "icon": icon,
-        "prompt": prompt,
-        "input_type": "choice",
-        "options": options,
-        "answer": options.index(correct),
-        "hint": hint,
-    }
+def _shuffle_until_changed(values):
+    values = list(values)
+    shuffled = values[:]
+    for _ in range(20):
+        random.shuffle(shuffled)
+        if shuffled != values:
+            break
+    return shuffled
+
+
+def _signal_neighbors(index, rows=2, cols=3):
+    r, c = divmod(index, cols)
+    out = [index]
+    for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        rr, cc = r + dr, c + dc
+        if 0 <= rr < rows and 0 <= cc < cols:
+            out.append(rr * cols + cc)
+    return out
+
+
+def _apply_signal_press(state, index):
+    state = list(state)
+    for j in _signal_neighbors(index):
+        state[j] = 0 if state[j] else 1
+    return state
+
+
+def _make_solvable_signal_state(goal):
+    """목표 상태에서 실제 버튼 조작을 여러 번 적용해 항상 풀 수 있는 시작 상태를 만듭니다."""
+    state = list(goal)
+    presses = random.sample(range(6), k=random.randint(2, 5))
+    for i in presses:
+        state = _apply_signal_press(state, i)
+    if state == list(goal):
+        state = _apply_signal_press(state, random.randrange(6))
+    return state
+
+
+def _make_sliding_start():
+    """2×3 슬라이딩 퍼즐을 정답 상태에서 합법적인 이동만 수행해 섞습니다."""
+    board = [1, 2, 3, 4, 5, 0]
+    blank = 5
+    previous = None
+    for _ in range(18):
+        r, c = divmod(blank, 3)
+        neighbors = []
+        for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            rr, cc = r + dr, c + dc
+            if 0 <= rr < 2 and 0 <= cc < 3:
+                idx = rr * 3 + cc
+                if idx != previous:
+                    neighbors.append(idx)
+        nxt = random.choice(neighbors)
+        board[blank], board[nxt] = board[nxt], board[blank]
+        previous, blank = blank, nxt
+    if board == [1, 2, 3, 4, 5, 0]:
+        board[4], board[5] = board[5], board[4]
+    return board
 
 
 def build_treasure_puzzle(station_name, game_type=None):
-    """보물상자에 도착할 때마다 9종 중 하나를 랜덤으로 골라 퍼즐을 생성합니다."""
+    """보물상자에 도착할 때마다 조작형 퍼즐 9종 중 하나를 랜덤으로 생성합니다."""
     if game_type not in TREASURE_GAME_TYPES:
-        # 바로 직전에 나온 유형은 가능하면 피해서 연속 중복을 줄입니다.
         previous = st.session_state.get("last_treasure_game_type")
         candidates = [g for g in TREASURE_GAME_TYPES if g != previous] or TREASURE_GAME_TYPES
         game_type = random.choice(candidates)
     st.session_state.last_treasure_game_type = game_type
 
-    if game_type == "number_signal":
-        start_num = random.randint(1, 4)
-        step = random.choice([2, 3, 4])
-        seq = [start_num + step * i for i in range(4)]
-        correct = seq[-1] + step
-        distractors = [correct - 1, correct + 1, correct + step]
-        return make_choice_puzzle(
-            "🚦 숫자 신호 퍼즐",
-            f"역무실 신호판에 **{' → '.join(map(str, seq))} → ?** 가 떴어요. 같은 규칙으로 다음 숫자는?",
-            str(correct),
-            [str(v) for v in distractors],
-            icon="🚦",
-            hint=f"앞 숫자에서 항상 같은 수만큼 커집니다. 차이는 {step}입니다.",
-        )
-
-    if game_type == "code_lock":
-        # 2호선 번호(2), 선로의 두 진행 방향(2), 신호등 기본색 3개(3)
+    if game_type == "car_sort":
+        goal = ["🚂 기관차", "🚃 객차", "🍽️ 식당칸", "🚪 마지막칸"]
         return {
-            "title": "🔐 역무실 암호 자물쇠",
-            "icon": "🔐",
-            "prompt": (
-                "보물상자 자물쇠는 세 자리예요. 첫째 숫자는 **2호선의 번호**, "
-                "둘째는 **선로의 진행 방향 수(앞/뒤)**, 셋째는 **신호등 기본색 수**예요. "
-                "세 자리 암호를 입력하세요."
-            ),
-            "input_type": "text",
-            "answer": "223",
-            "placeholder": "예: 123",
-            "hint": "2호선 → 2, 앞/뒤 → 2, 빨강·노랑·초록 → 3",
+            "game_type": game_type,
+            "title": "🚃 객차 순서 맞추기",
+            "icon": "🚃",
+            "prompt": "섞여 있는 차량을 **▲/▼ 버튼으로 직접 움직여** 목표 순서와 똑같이 만들어 보세요.",
+            "state": _shuffle_until_changed(goal),
+            "goal": goal,
+            "max_attempts": 3,
+            "hint": "기관차가 맨 앞, 마지막칸이 맨 뒤입니다.",
         }
 
-    if game_type == "odd_one_out":
-        return make_choice_puzzle(
-            "🔎 철도 친구 중 다른 하나",
-            "네 친구 중 **철길 위를 달리지 않는 것** 하나가 숨어 있어요. 누구일까요?",
-            "시내버스",
-            ["KTX", "SRT", "무궁화호"],
-            icon="🔎",
-            hint="레일을 따라 달리는 탈것인지 생각해 보세요.",
-        )
-
-    if game_type == "station_order":
-        return make_choice_puzzle(
-            "🗺️ 역 순서 퍼즐",
-            "게임 진행 방향으로 **당산 → 영등포구청 → ?** 입니다. 빈칸에 들어갈 역은?",
-            "문래",
-            ["합정", "신도림", "대림"],
-            icon="🗺️",
-            hint="현재 게임의 2호선 진행 순서를 떠올려 보세요.",
-        )
-
-    if game_type == "word_scramble":
-        words = [
-            ("장-강-승", "승강장", "기차를 타고 내리는 곳"),
-            ("차-동-전", "전동차", "전기로 움직이는 지하철 차량"),
-            ("역-승-환", "환승역", "다른 노선으로 갈아탈 수 있는 역"),
-            ("표-차-기", "기차표", "기차를 탈 때 필요한 표"),
-        ]
-        scrambled, answer, clue = random.choice(words)
+    if game_type == "switch_route":
+        goal = [random.choice([0, 1]) for _ in range(3)]
+        # 목표 방향을 지도 표지판처럼 보여 줍니다. 정답 선택지가 아니라 스위치를 조작하는 활동입니다.
+        markers = []
+        for i, direction in enumerate(goal, start=1):
+            left = "⭐" if direction == 0 else "⬜"
+            right = "⭐" if direction == 1 else "⬜"
+            markers.append(f"{i}번 분기  ◀ {left}   {right} ▶")
         return {
-            "title": "🔤 철도 글자 조립",
-            "icon": "🔤",
-            "prompt": f"글자가 뒤섞였어요: **{scrambled}**  \n힌트: {clue}. 올바른 낱말을 입력하세요.",
-            "input_type": "text",
-            "answer": answer,
-            "placeholder": "정답을 입력하세요",
-            "hint": f"힌트의 뜻을 가진 {len(answer)}글자 낱말입니다.",
+            "game_type": game_type,
+            "title": "🛤️ 선로 스위치 연결",
+            "icon": "🛤️",
+            "prompt": "위의 ⭐ 표지판이 이어지는 쪽으로 3개의 분기기를 돌려 보물 선로를 연결하세요.",
+            "state": [random.choice([0, 1]) for _ in range(3)],
+            "goal": goal,
+            "map_lines": markers,
+            "max_attempts": 3,
+            "hint": "각 분기에서 별이 있는 방향과 현재 스위치 방향을 하나씩 비교하세요.",
         }
 
-    if game_type == "switch_track":
-        start_track = random.choice([1, 2])
-        moves = random.choice([
-            [1, 1, -1],
-            [1, -1, 2],
-            [2, -1, 1],
-        ])
-        final_track = start_track + sum(moves)
-        symbols = " → ".join(("오른쪽 1칸" if m == 1 else "오른쪽 2칸" if m == 2 else "왼쪽 1칸") for m in moves)
-        distractors = [v for v in range(1, 6) if v != final_track][:3]
-        return make_choice_puzzle(
-            "🛤️ 선로 스위치 퍼즐",
-            f"열차가 **{start_track}번 선로**에서 출발해요. 스위치가 **{symbols}** 순서로 바뀌면 마지막 선로는 몇 번일까요?",
-            f"{final_track}번",
-            [f"{v}번" for v in distractors],
-            icon="🛤️",
-            hint="오른쪽은 더하고, 왼쪽은 빼면 됩니다.",
-        )
+    if game_type == "signal_grid":
+        goal = [random.choice([0, 1]) for _ in range(6)]
+        if sum(goal) in (0, 6):
+            goal[random.randrange(6)] = 1 - goal[random.randrange(6)]
+        return {
+            "game_type": game_type,
+            "title": "🚦 신호등 불빛 퍼즐",
+            "icon": "🚦",
+            "prompt": "불빛을 누르면 **그 칸과 위·아래·왼쪽·오른쪽 칸이 함께 반전**됩니다. 목표 신호와 똑같이 만들어 보세요.",
+            "state": _make_solvable_signal_state(goal),
+            "goal": goal,
+            "max_attempts": 3,
+            "hint": "한 번 누른 칸은 주변 불빛도 바뀝니다. 목표와 다른 칸을 중심으로 시험해 보세요.",
+        }
 
-    if game_type == "pattern":
-        patterns = [
-            (["🚇", "🚆", "🚄", "🚇", "🚆"], "🚄", ["🚇", "🚆", "🚌"]),
-            (["🔵", "🔵", "🟠", "🔵", "🔵"], "🟠", ["🔵", "🟢", "🔴"]),
-            (["🚉", "🎫", "🚉", "🎫", "🚉"], "🎫", ["🚉", "🚦", "🛤️"]),
-        ]
-        seq, correct, distractors = random.choice(patterns)
-        return make_choice_puzzle(
-            "🧠 반복 패턴 찾기",
-            f"전광판 패턴이 **{' '.join(seq)} ?** 순서로 반복됩니다. 다음 그림은?",
-            correct,
-            distractors,
-            icon="🧠",
-            hint="처음부터 반복되는 묶음을 찾아보세요.",
-        )
+    if game_type == "track_rotate":
+        cycle = ["─", "╲", "│", "╱"]
+        goal_rot = [random.randrange(4) for _ in range(5)]
+        state = [(g + random.choice([1, 2, 3])) % 4 for g in goal_rot]
+        return {
+            "game_type": game_type,
+            "title": "🔄 선로 타일 회전",
+            "icon": "🔄",
+            "prompt": "각 선로 타일을 눌러 회전시키고, **목표 선로 모양**과 완전히 같게 맞춰 보세요.",
+            "state": state,
+            "goal": goal_rot,
+            "cycle": cycle,
+            "max_attempts": 3,
+            "hint": "타일을 누를 때마다 45~90도씩 다음 모양으로 바뀝니다.",
+        }
 
-    if game_type == "emoji_code":
-        puzzles = [
-            ("🚉 + 🔄", "환승역", ["종착역", "버스정류장", "매표소"]),
-            ("🚆 + 🎫", "기차표", ["시간표", "승강장", "기관차"]),
-            ("🚇 + 🚪", "스크린도어", ["개찰구", "터널", "철교"]),
-        ]
-        code, correct, distractors = random.choice(puzzles)
-        return make_choice_puzzle(
-            "😎 이모지 철도 암호",
-            f"전광판에 **{code}** 라는 그림 암호가 나타났어요. 가장 잘 어울리는 말은?",
-            correct,
-            distractors,
-            icon="😎",
-            hint="두 그림이 뜻하는 말을 하나로 합쳐 보세요.",
-        )
+    if game_type == "memory_pairs":
+        cards = ["🚄", "🚇", "🚆"] * 2
+        random.shuffle(cards)
+        return {
+            "game_type": game_type,
+            "title": "🃏 철도 카드 짝맞추기",
+            "icon": "🃏",
+            "prompt": "카드를 두 장씩 뒤집어 같은 열차 그림 3쌍을 모두 찾아 보세요.",
+            "cards": cards,
+            "revealed": [],
+            "matched": [],
+            "mismatch": False,
+            "moves": 0,
+            "hint": "한 번 본 카드의 위치를 기억해 두면 빨리 맞출 수 있습니다.",
+        }
 
-    # ticket_math
-    coin500 = random.choice([1, 2, 3])
-    coin100 = random.choice([2, 3, 4])
-    total = coin500 * 500 + coin100 * 100
+    if game_type == "maze":
+        walls = {(0, 1), (1, 1), (2, 3)}
+        return {
+            "game_type": game_type,
+            "title": "🧭 미니 선로 미로",
+            "icon": "🧭",
+            "prompt": "화살표 버튼으로 열차를 움직여 벽(⬛)을 피해 보물(🎁)까지 도착하세요.",
+            "rows": 4,
+            "cols": 4,
+            "walls": [list(p) for p in sorted(walls)],
+            "position": [0, 0],
+            "goal": [3, 3],
+            "hint": "막힌 길을 만나면 다른 방향으로 돌아가세요.",
+        }
+
+    if game_type == "cargo_balance":
+        weights = [1, 2, 3, 4]
+        sides = [random.choice([0, 1]) for _ in weights]
+        if sides in ([0, 0, 0, 0], [1, 1, 1, 1]):
+            sides[0] = 1 - sides[0]
+        return {
+            "game_type": game_type,
+            "title": "⚖️ 화물 균형 맞추기",
+            "icon": "⚖️",
+            "prompt": "각 화물 버튼을 눌러 왼쪽/오른쪽 화물칸을 바꾸고, **두 칸의 총 무게를 같게** 만드세요.",
+            "weights": weights,
+            "state": sides,
+            "max_attempts": 3,
+            "hint": "전체 무게는 10kg이므로 양쪽이 각각 같은 무게가 되어야 합니다.",
+        }
+
+    if game_type == "mastermind":
+        colors = ["🔴", "🟡", "🟢", "🔵"]
+        secret = random.sample(range(4), 3)
+        return {
+            "game_type": game_type,
+            "title": "🎨 색상 암호 추리",
+            "icon": "🎨",
+            "prompt": "3칸 색상 암호를 추리하세요. 각 칸을 눌러 색을 바꾼 뒤 검사하면 위치·색상 힌트를 받을 수 있습니다.",
+            "colors": colors,
+            "secret": secret,
+            "state": [0, 0, 0],
+            "max_attempts": 4,
+            "history": [],
+            "hint": "●는 색과 위치가 모두 맞음, ○는 색은 있지만 위치가 다름을 뜻합니다.",
+        }
+
+    # sliding_tiles
     return {
-        "title": "🎫 보물열차 티켓 계산",
-        "icon": "🎫",
-        "prompt": (
-            f"보물열차 표를 사려면 동전을 정확히 세어야 해요. **500원짜리 {coin500}개**와 "
-            f"**100원짜리 {coin100}개**를 모두 합치면 몇 원일까요?"
-        ),
-        "input_type": "number",
-        "answer": total,
-        "hint": "500원 동전의 합과 100원 동전의 합을 각각 구한 뒤 더하세요.",
+        "game_type": "sliding_tiles",
+        "title": "🔢 숫자 타일 슬라이딩",
+        "icon": "🔢",
+        "prompt": "빈칸 옆의 숫자 타일을 눌러 움직이고 **1·2·3 / 4·5·빈칸** 순서로 맞춰 보세요.",
+        "state": _make_sliding_start(),
+        "goal": [1, 2, 3, 4, 5, 0],
+        "hint": "빈칸과 상하좌우로 붙어 있는 타일만 움직일 수 있습니다.",
     }
 
 
@@ -973,7 +1014,7 @@ def show_binbou_effect(message, penalty, effect_type="caught"):
 
 
 def begin_treasure_minigame(station_name, resume, puzzle=None):
-    """보물상자 칸에 도착하면 도착 시 미리 랜덤 선택된 퍼즐을 시작합니다."""
+    """보물상자 칸에 도착하면 조작형 퍼즐을 시작합니다."""
     puzzle = puzzle or build_treasure_puzzle(station_name)
     st.session_state.treasure_game = {
         "id": random.randint(100000, 999999),
@@ -987,75 +1028,217 @@ def begin_treasure_minigame(station_name, resume, puzzle=None):
     st.session_state.play_sound = "treasure"
     st.session_state.last_message = (
         resume.get("base_msg", "")
-        + f"\n\n🎁 **{station_name}역 보물상자 발견!** 미니게임을 클리어하면 점수를 얻습니다. "
-          f"첫 성공은 +{TREASURE_REWARD}점, 재도전 성공은 +{TREASURE_RETRY_REWARD}점!"
+        + f"\n\n🎁 **{station_name}역 보물상자 발견!** 퍼즐을 직접 조작해 완성하면 점수를 얻습니다."
     )
-    add_event_log(f"🎁 {station_name}역 보물상자 미니게임 시작!")
+    add_event_log(f"🎁 {station_name}역 보물상자 퍼즐 시작!")
 
 
-def normalize_puzzle_text(value):
-    return "".join(str(value).strip().lower().split())
-
-
-def resolve_treasure_minigame(answer_value):
-    """보물상자 퍼즐 답을 판정하고 성공해야만 점수를 지급합니다."""
+def complete_treasure_minigame():
+    """현재 보물 퍼즐을 성공 처리하고 보상을 지급합니다."""
     game = st.session_state.get("treasure_game")
     if not game:
         return
     puzzle = game.get("puzzle", {})
-    input_type = puzzle.get("input_type", "choice")
+    attempts = int(game.get("attempts", 0))
+    reward = TREASURE_REWARD if attempts == 0 else TREASURE_RETRY_REWARD
+    st.session_state.score += reward
 
-    if input_type == "choice":
-        is_correct = int(answer_value) == int(puzzle.get("answer", -1))
-    elif input_type == "number":
-        try:
-            is_correct = int(answer_value) == int(puzzle.get("answer"))
-        except (TypeError, ValueError):
-            is_correct = False
-    else:
-        is_correct = normalize_puzzle_text(answer_value) == normalize_puzzle_text(puzzle.get("answer", ""))
+    result_msg = f"🎉 {puzzle.get('title', '보물 퍼즐')} 클리어! 보물상자에서 **+{reward}점** 획득!"
+    st.session_state.treasure_effect = {
+        "id": random.randint(100000, 999999),
+        "message": f"퍼즐 성공! +{reward}점!",
+    }
+    st.session_state.play_sound = "treasure"
+    add_event_log(f"🏆 {game.get('station', '보물상자')} 퍼즐 성공! +{reward}점")
 
-    attempts_before = int(game.get("attempts", 0))
+    resume = game.get("resume", {})
+    st.session_state.treasure_game = None
+    base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
+    continue_after_forward(
+        base_msg,
+        bool(resume.get("double_quiz", False)),
+        bool(resume.get("did_win", False)),
+    )
+
+
+def fail_treasure_attempt(feedback):
+    """검사형 퍼즐의 한 번의 실패를 처리합니다. 마지막 기회가 끝나면 0점으로 종료합니다."""
+    game = st.session_state.get("treasure_game")
+    if not game:
+        return
+    puzzle = game.get("puzzle", {})
+    max_attempts = int(puzzle.get("max_attempts", TREASURE_MAX_ATTEMPTS))
+    game["attempts"] = int(game.get("attempts", 0)) + 1
+
+    if game["attempts"] < max_attempts:
+        game["feedback"] = feedback
+        st.session_state.play_sound = "wrong"
+        st.session_state.last_message = (
+            game.get("resume", {}).get("base_msg", "")
+            + f"\n\n🧩 아직 완성되지 않았어요. 조작을 바꿔 다시 시도해 보세요. "
+              f"남은 검사 기회: {max_attempts - game['attempts']}회"
+        )
+        return
+
     resume = game.get("resume", {})
     station = game.get("station", "보물상자")
-
-    if is_correct:
-        reward = TREASURE_REWARD if attempts_before == 0 else TREASURE_RETRY_REWARD
-        st.session_state.score += reward
-        result_msg = f"🎉 {puzzle.get('title', '퍼즐')} 클리어! 보물상자에서 **+{reward}점** 획득!"
-        st.session_state.treasure_effect = {
-            "id": random.randint(100000, 999999),
-            "message": f"퍼즐 성공! +{reward}점!",
-        }
-        st.session_state.play_sound = "treasure"
-        add_event_log(f"🏆 {station}역 보물상자 퍼즐 성공! +{reward}점")
-        st.session_state.treasure_game = None
-        base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
-        continue_after_forward(base_msg, bool(resume.get("double_quiz", False)), bool(resume.get("did_win", False)))
-        return
-
-    game["attempts"] = attempts_before + 1
-    if game["attempts"] < TREASURE_MAX_ATTEMPTS:
-        game["feedback"] = "❌ 아쉽습니다! 힌트를 보고 한 번 더 도전하세요."
-        st.session_state.last_message = (
-            resume.get("base_msg", "")
-            + "\n\n❌ 첫 번째 도전 실패! 아직 한 번의 기회가 남아 있습니다."
-        )
-        st.session_state.play_sound = "wrong"
-        add_event_log(f"🧩 {station}역 보물 퍼즐 1차 실패 — 재도전!")
-        return
-
-    correct_answer = puzzle.get("answer")
-    if input_type == "choice":
-        options = puzzle.get("options", [])
-        if isinstance(correct_answer, int) and 0 <= correct_answer < len(options):
-            correct_answer = options[correct_answer]
-    result_msg = f"💨 두 번의 도전을 모두 사용했습니다. 이번 보물상자는 **0점**입니다. 정답: {correct_answer}"
     st.session_state.treasure_game = None
     st.session_state.play_sound = "wrong"
-    add_event_log(f"📦 {station}역 보물상자 미니게임 실패 — 점수 없음")
-    base_msg = resume.get("base_msg", "") + f"\n\n{result_msg}"
-    continue_after_forward(base_msg, bool(resume.get("double_quiz", False)), bool(resume.get("did_win", False)))
+    add_event_log(f"📦 {station} 보물 퍼즐 미완성 — 점수 없음")
+    base_msg = (
+        resume.get("base_msg", "")
+        + "\n\n💨 검사 기회를 모두 사용했습니다. 이번 보물상자는 **0점**입니다."
+    )
+    continue_after_forward(
+        base_msg,
+        bool(resume.get("double_quiz", False)),
+        bool(resume.get("did_win", False)),
+    )
+
+
+def check_treasure_minigame():
+    """현재 퍼즐 상태가 목표를 만족하는지 검사합니다."""
+    game = st.session_state.get("treasure_game")
+    if not game:
+        return
+    puzzle = game.get("puzzle", {})
+    kind = puzzle.get("game_type")
+
+    if kind in ("car_sort", "switch_route", "signal_grid", "track_rotate"):
+        if list(puzzle.get("state", [])) == list(puzzle.get("goal", [])):
+            complete_treasure_minigame()
+        else:
+            fail_treasure_attempt("❌ 아직 목표 모양과 다릅니다. 현재 상태를 다시 살펴보세요.")
+        return
+
+    if kind == "cargo_balance":
+        weights = puzzle.get("weights", [])
+        sides = puzzle.get("state", [])
+        left = sum(w for w, side in zip(weights, sides) if side == 0)
+        right = sum(w for w, side in zip(weights, sides) if side == 1)
+        if left == right:
+            complete_treasure_minigame()
+        else:
+            fail_treasure_attempt(f"⚖️ 현재는 왼쪽 {left}kg / 오른쪽 {right}kg입니다.")
+        return
+
+    if kind == "mastermind":
+        guess = list(puzzle.get("state", []))
+        secret = list(puzzle.get("secret", []))
+        if guess == secret:
+            complete_treasure_minigame()
+            return
+
+        exact = sum(a == b for a, b in zip(guess, secret))
+        common = sum(min(guess.count(c), secret.count(c)) for c in set(guess))
+        misplaced = max(0, common - exact)
+        puzzle.setdefault("history", []).append({
+            "guess": guess[:],
+            "exact": exact,
+            "misplaced": misplaced,
+        })
+        fail_treasure_attempt(
+            f"🔎 힌트: ● {exact}개(색+위치 일치), ○ {misplaced}개(색만 일치)"
+        )
+        return
+
+
+def treasure_puzzle_action(action, index=None):
+    """버튼 조작형 퍼즐의 상태를 한 단계 변경합니다."""
+    game = st.session_state.get("treasure_game")
+    if not game:
+        return
+    puzzle = game.get("puzzle", {})
+    kind = puzzle.get("game_type")
+
+    if kind == "car_sort":
+        state = puzzle["state"]
+        i = int(index)
+        if action == "up" and i > 0:
+            state[i - 1], state[i] = state[i], state[i - 1]
+        elif action == "down" and i < len(state) - 1:
+            state[i + 1], state[i] = state[i], state[i + 1]
+        return
+
+    if kind == "switch_route":
+        i = int(index)
+        puzzle["state"][i] = 1 - int(puzzle["state"][i])
+        return
+
+    if kind == "signal_grid":
+        i = int(index)
+        puzzle["state"] = _apply_signal_press(puzzle["state"], i)
+        return
+
+    if kind == "track_rotate":
+        i = int(index)
+        puzzle["state"][i] = (int(puzzle["state"][i]) + 1) % len(puzzle.get("cycle", ["─","╲","│","╱"]))
+        return
+
+    if kind == "memory_pairs":
+        cards = puzzle["cards"]
+        revealed = puzzle.setdefault("revealed", [])
+        matched = puzzle.setdefault("matched", [])
+
+        if action == "hide_mismatch":
+            puzzle["revealed"] = []
+            puzzle["mismatch"] = False
+            return
+
+        i = int(index)
+        if puzzle.get("mismatch") or i in matched or i in revealed:
+            return
+        revealed.append(i)
+        if len(revealed) == 2:
+            puzzle["moves"] = int(puzzle.get("moves", 0)) + 1
+            a, b = revealed
+            if cards[a] == cards[b]:
+                matched.extend([a, b])
+                puzzle["revealed"] = []
+                if len(matched) == len(cards):
+                    complete_treasure_minigame()
+            else:
+                puzzle["mismatch"] = True
+        return
+
+    if kind == "maze":
+        r, c = puzzle.get("position", [0, 0])
+        delta = {
+            "up": (-1, 0), "down": (1, 0),
+            "left": (0, -1), "right": (0, 1),
+        }.get(action, (0, 0))
+        rr, cc = r + delta[0], c + delta[1]
+        walls = {tuple(v) for v in puzzle.get("walls", [])}
+        if 0 <= rr < int(puzzle.get("rows", 4)) and 0 <= cc < int(puzzle.get("cols", 4)) and (rr, cc) not in walls:
+            puzzle["position"] = [rr, cc]
+        if puzzle.get("position") == puzzle.get("goal"):
+            complete_treasure_minigame()
+        return
+
+    if kind == "cargo_balance":
+        i = int(index)
+        puzzle["state"][i] = 1 - int(puzzle["state"][i])
+        return
+
+    if kind == "mastermind":
+        i = int(index)
+        colors = puzzle.get("colors", ["🔴", "🟡", "🟢", "🔵"])
+        puzzle["state"][i] = (int(puzzle["state"][i]) + 1) % len(colors)
+        return
+
+    if kind == "sliding_tiles":
+        i = int(index)
+        board = puzzle["state"]
+        if i < 0 or i >= len(board) or board[i] == 0:
+            return
+        blank = board.index(0)
+        r1, c1 = divmod(i, 3)
+        r2, c2 = divmod(blank, 3)
+        if abs(r1 - r2) + abs(c1 - c2) == 1:
+            board[i], board[blank] = board[blank], board[i]
+        if board == puzzle.get("goal"):
+            complete_treasure_minigame()
+        return
 
 
 def generate_ladder_layout():
@@ -1311,7 +1494,7 @@ def apply_square_event(station_name, pos):
         # 보물상자 위치와 퍼즐 유형은 분리합니다. 같은 역에 다시 도착해도
         # 9종 퍼즐 중 하나가 새로 랜덤 선택됩니다. 이동 애니메이션이 끝난 뒤 이 퍼즐을 엽니다.
         puzzle = build_treasure_puzzle(station_name)
-        game_name = st.session_state.get("last_treasure_game_type", "number_signal")
+        game_name = st.session_state.get("last_treasure_game_type", "car_sort")
         st.session_state.pending_treasure = {
             "station": station_name,
             "game_type": game_name,
@@ -2296,14 +2479,15 @@ with st.sidebar:
 
     elif phase == "treasure_minigame":
         game = st.session_state.get("treasure_game")
-        st.subheader("🎁 지금 할 일: 보물상자 퍼즐")
+        st.subheader("🎁 지금 할 일: 보물 퍼즐")
         if game:
             puzzle = game.get("puzzle", {})
+            kind = puzzle.get("game_type", "")
             attempts = int(game.get("attempts", 0))
-            remaining = TREASURE_MAX_ATTEMPTS - attempts
+            max_attempts = int(puzzle.get("max_attempts", TREASURE_MAX_ATTEMPTS))
+
             st.warning(f"{puzzle.get('icon', '🧩')} **{puzzle.get('title', '보물 퍼즐')}**")
-            st.markdown(puzzle.get("prompt", "퍼즐을 풀어 보세요."))
-            st.caption(f"남은 기회: {remaining}회 · 첫 성공 +{TREASURE_REWARD}점 / 재도전 성공 +{TREASURE_RETRY_REWARD}점")
+            st.markdown(puzzle.get("prompt", "퍼즐을 완성해 보세요."))
 
             feedback = game.get("feedback", "")
             if feedback:
@@ -2311,35 +2495,219 @@ with st.sidebar:
                 if puzzle.get("hint"):
                     st.info(f"💡 힌트: {puzzle['hint']}")
 
-            input_type = puzzle.get("input_type", "choice")
-            if input_type == "choice":
-                for option_idx, option in enumerate(puzzle.get("options", [])):
+            if kind in ("car_sort", "switch_route", "signal_grid", "track_rotate", "cargo_balance", "mastermind"):
+                st.caption(
+                    f"검사 기회: {max(0, max_attempts - attempts)}회 · "
+                    f"첫 검사에서 성공 +{TREASURE_REWARD}점 / 실패 후 성공 +{TREASURE_RETRY_REWARD}점"
+                )
+            else:
+                st.caption(f"퍼즐을 완성하면 +{TREASURE_REWARD}점!")
+
+            # 1) 객차 순서 맞추기
+            if kind == "car_sort":
+                st.markdown("**목표:** " + " → ".join(puzzle.get("goal", [])))
+                for i, item in enumerate(puzzle.get("state", [])):
+                    a, b, c = st.columns([1, 4, 1])
+                    with a:
+                        if st.button("▲", key=f"car_up_{game['id']}_{i}", disabled=(i == 0), use_container_width=True):
+                            treasure_puzzle_action("up", i); st.rerun()
+                    with b:
+                        st.markdown(f"<div style='text-align:center;padding:8px;border:1px solid #ddd;border-radius:8px'>{item}</div>", unsafe_allow_html=True)
+                    with c:
+                        if st.button("▼", key=f"car_down_{game['id']}_{i}", disabled=(i == len(puzzle.get('state', [])) - 1), use_container_width=True):
+                            treasure_puzzle_action("down", i); st.rerun()
+                if st.button("✅ 순서 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 2) 선로 스위치
+            elif kind == "switch_route":
+                st.markdown("**보물 선로 지도**")
+                for line in puzzle.get("map_lines", []):
+                    st.code(line, language=None)
+                cols = st.columns(3)
+                for i, col in enumerate(cols):
+                    direction = "◀ 왼쪽" if puzzle["state"][i] == 0 else "오른쪽 ▶"
+                    with col:
+                        if st.button(
+                            f"{i+1}번\n{direction}",
+                            key=f"switch_{game['id']}_{i}_{puzzle['state'][i]}",
+                            use_container_width=True,
+                        ):
+                            treasure_puzzle_action("toggle", i); st.rerun()
+                if st.button("🚦 선로 연결 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 3) 불빛 토글 퍼즐
+            elif kind == "signal_grid":
+                goal = puzzle.get("goal", [])
+                state = puzzle.get("state", [])
+                st.markdown("**목표 신호**")
+                for r in range(2):
+                    cols = st.columns(3)
+                    for c, col in enumerate(cols):
+                        with col:
+                            st.markdown(
+                                f"<div style='text-align:center;font-size:28px'>{'🟡' if goal[r*3+c] else '⚫'}</div>",
+                                unsafe_allow_html=True,
+                            )
+                st.markdown("**현재 신호 — 불빛을 눌러 바꾸세요**")
+                for r in range(2):
+                    cols = st.columns(3)
+                    for c, col in enumerate(cols):
+                        idx = r * 3 + c
+                        with col:
+                            if st.button(
+                                "🟡" if state[idx] else "⚫",
+                                key=f"light_{game['id']}_{idx}_{state[idx]}",
+                                use_container_width=True,
+                            ):
+                                treasure_puzzle_action("press", idx); st.rerun()
+                if st.button("✅ 신호 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 4) 선로 타일 회전
+            elif kind == "track_rotate":
+                cycle = puzzle.get("cycle", ["─", "╲", "│", "╱"])
+                st.markdown("**목표 선로**")
+                st.markdown("### " + "  ".join(cycle[i] for i in puzzle.get("goal", [])))
+                st.markdown("**현재 선로 — 타일을 눌러 회전하세요**")
+                cols = st.columns(len(puzzle.get("state", [])))
+                for i, col in enumerate(cols):
+                    with col:
+                        rot = puzzle["state"][i]
+                        if st.button(
+                            cycle[rot],
+                            key=f"track_{game['id']}_{i}_{rot}",
+                            use_container_width=True,
+                        ):
+                            treasure_puzzle_action("rotate", i); st.rerun()
+                if st.button("✅ 선로 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 5) 기억 카드 짝맞추기
+            elif kind == "memory_pairs":
+                cards = puzzle.get("cards", [])
+                revealed = set(puzzle.get("revealed", []))
+                matched = set(puzzle.get("matched", []))
+                for r in range(2):
+                    cols = st.columns(3)
+                    for c, col in enumerate(cols):
+                        idx = r * 3 + c
+                        visible = idx in revealed or idx in matched
+                        label = cards[idx] if visible else "❓"
+                        with col:
+                            if st.button(
+                                label,
+                                key=f"memory_{game['id']}_{idx}_{int(visible)}",
+                                disabled=(idx in matched or puzzle.get("mismatch", False)),
+                                use_container_width=True,
+                            ):
+                                treasure_puzzle_action("reveal", idx); st.rerun()
+                st.caption(f"찾은 짝: {len(matched)//2}/3 · 뒤집은 횟수: {puzzle.get('moves', 0)}")
+                if puzzle.get("mismatch"):
+                    st.info("두 카드가 달라요. 위치를 기억한 뒤 다시 뒤집어 보세요.")
+                    if st.button("↩️ 다시 뒤집기", key=f"memory_hide_{game['id']}", use_container_width=True, type="primary"):
+                        treasure_puzzle_action("hide_mismatch"); st.rerun()
+
+            # 6) 미니 선로 미로
+            elif kind == "maze":
+                rows, cols_n = int(puzzle.get("rows", 4)), int(puzzle.get("cols", 4))
+                walls = {tuple(v) for v in puzzle.get("walls", [])}
+                pos = tuple(puzzle.get("position", [0, 0]))
+                goal = tuple(puzzle.get("goal", [3, 3]))
+                grid_lines = []
+                for r in range(rows):
+                    row = []
+                    for c in range(cols_n):
+                        cell = (r, c)
+                        if cell == pos:
+                            row.append("🚂")
+                        elif cell == goal:
+                            row.append("🎁")
+                        elif cell in walls:
+                            row.append("⬛")
+                        else:
+                            row.append("⬜")
+                    grid_lines.append(" ".join(row))
+                st.markdown("### " + "  \n### ".join(grid_lines))
+                _, up_col, _ = st.columns(3)
+                with up_col:
+                    if st.button("⬆️", key=f"maze_up_{game['id']}", use_container_width=True):
+                        treasure_puzzle_action("up"); st.rerun()
+                lcol, dcol, rcol = st.columns(3)
+                with lcol:
+                    if st.button("⬅️", key=f"maze_left_{game['id']}", use_container_width=True):
+                        treasure_puzzle_action("left"); st.rerun()
+                with dcol:
+                    if st.button("⬇️", key=f"maze_down_{game['id']}", use_container_width=True):
+                        treasure_puzzle_action("down"); st.rerun()
+                with rcol:
+                    if st.button("➡️", key=f"maze_right_{game['id']}", use_container_width=True):
+                        treasure_puzzle_action("right"); st.rerun()
+
+            # 7) 화물 균형
+            elif kind == "cargo_balance":
+                weights = puzzle.get("weights", [])
+                sides = puzzle.get("state", [])
+                left_total = sum(w for w, side in zip(weights, sides) if side == 0)
+                right_total = sum(w for w, side in zip(weights, sides) if side == 1)
+                a, b = st.columns(2)
+                a.metric("⬅️ 왼쪽 화물칸", f"{left_total} kg")
+                b.metric("오른쪽 화물칸 ➡️", f"{right_total} kg")
+                for i, weight in enumerate(weights):
+                    side_text = "⬅️ 왼쪽" if sides[i] == 0 else "오른쪽 ➡️"
                     if st.button(
-                        str(option),
-                        key=f"treasure_{game['id']}_{attempts}_{option_idx}",
+                        f"📦 {weight}kg · 현재 {side_text} — 눌러서 반대쪽으로 이동",
+                        key=f"cargo_{game['id']}_{i}_{sides[i]}",
                         use_container_width=True,
                     ):
-                        resolve_treasure_minigame(option_idx)
-                        st.rerun()
-            elif input_type == "number":
-                answer_num = st.number_input(
-                    "정답 숫자",
-                    min_value=0,
-                    step=100,
-                    key=f"treasure_number_{game['id']}_{attempts}",
-                )
-                if st.button("🔓 정답 확인", key=f"treasure_submit_{game['id']}_{attempts}", use_container_width=True, type="primary"):
-                    resolve_treasure_minigame(answer_num)
-                    st.rerun()
-            else:
-                answer_text = st.text_input(
-                    "정답",
-                    placeholder=puzzle.get("placeholder", "정답을 입력하세요"),
-                    key=f"treasure_text_{game['id']}_{attempts}",
-                )
-                if st.button("🔓 정답 확인", key=f"treasure_submit_{game['id']}_{attempts}", use_container_width=True, type="primary"):
-                    resolve_treasure_minigame(answer_text)
-                    st.rerun()
+                        treasure_puzzle_action("toggle", i); st.rerun()
+                if st.button("⚖️ 균형 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 8) Mastermind형 색상 암호
+            elif kind == "mastermind":
+                colors = puzzle.get("colors", ["🔴", "🟡", "🟢", "🔵"])
+                st.markdown("**현재 암호 조합 — 각 칸을 눌러 색을 바꾸세요**")
+                cols = st.columns(3)
+                for i, col in enumerate(cols):
+                    with col:
+                        ci = puzzle["state"][i]
+                        if st.button(
+                            colors[ci],
+                            key=f"master_{game['id']}_{i}_{ci}",
+                            use_container_width=True,
+                        ):
+                            treasure_puzzle_action("cycle", i); st.rerun()
+                history = puzzle.get("history", [])
+                if history:
+                    st.markdown("**이전 검사 힌트**")
+                    for h in history[-3:]:
+                        guess = " ".join(colors[i] for i in h["guess"])
+                        st.caption(f"{guess}  →  ● {h['exact']} / ○ {h['misplaced']}")
+                st.caption("● 색과 위치 모두 일치 · ○ 색은 있지만 위치가 다름")
+                if st.button("🔐 암호 검사", key=f"treasure_check_{game['id']}_{attempts}", use_container_width=True, type="primary"):
+                    check_treasure_minigame(); st.rerun()
+
+            # 9) 숫자 타일 슬라이딩
+            elif kind == "sliding_tiles":
+                board = puzzle.get("state", [])
+                for r in range(2):
+                    cols = st.columns(3)
+                    for c, col in enumerate(cols):
+                        idx = r * 3 + c
+                        value = board[idx]
+                        with col:
+                            if value == 0:
+                                st.button("　", key=f"slide_blank_{game['id']}_{idx}", disabled=True, use_container_width=True)
+                            else:
+                                if st.button(
+                                    str(value),
+                                    key=f"slide_{game['id']}_{idx}_{value}",
+                                    use_container_width=True,
+                                ):
+                                    treasure_puzzle_action("slide", idx); st.rerun()
+                st.caption("목표: 1 · 2 · 3 / 4 · 5 · 빈칸")
 
     elif phase == "waiting_penalty_roll":
         st.subheader("😱 지금 할 일: 뒤로 가기")
