@@ -914,6 +914,9 @@ def init_game(keep_name=True):
     st.session_state.quiz_key          = 0
     st.session_state.animation_event   = None
     st.session_state.play_sound        = None
+    # 정답/오답 직후 한 번만 보여 주는 보드 오버레이 상태입니다.
+    # play_sound와 분리하여 뒤로 가기 주사위에서 오답 화면이 다시 뜨지 않게 합니다.
+    st.session_state.answer_effect     = None
     st.session_state.score             = 0
     st.session_state.turns             = 0
     st.session_state.correct_streak    = 0
@@ -2300,6 +2303,9 @@ def move_backward():
 
     st.session_state.play_sound = None
     st.session_state.binbou_effect = None
+    # 오답 직후의 "아쉬워요" 효과는 제출 직후 한 번만 표시합니다.
+    # 뒤로 가기 주사위를 굴리는 단계에서는 다시 표시하지 않습니다.
+    st.session_state.answer_effect = None
     dice = random.randint(1, 4)
     new_pos = max(0, old_pos - dice)
     st.session_state.position = new_pos
@@ -2357,6 +2363,12 @@ def submit_answer(answer):
         gained = 20 if score_x2 else 10
         st.session_state.score          += gained
         st.session_state.correct_streak += 1
+        # 모든 정답에 짧은 시각 효과를 한 번 표시합니다.
+        st.session_state.answer_effect = {
+            "id": random.randint(100000, 999999),
+            "type": "correct",
+            "message": f"정답! +{gained}점",
+        }
         if score_x2:
             st.session_state.score_x2 = False
         streak    = st.session_state.correct_streak
@@ -2391,6 +2403,11 @@ def submit_answer(answer):
     else:
         st.session_state.correct_streak = 0
         st.session_state.celebration_event = None
+        st.session_state.answer_effect = {
+            "id": random.randint(100000, 999999),
+            "type": "wrong",
+            "message": "아쉬워요...",
+        }
         st.session_state.play_sound = "wrong"
         st.session_state.game_phase = "waiting_penalty_roll"
         st.session_state.last_message = (
@@ -2429,6 +2446,7 @@ def render_board(map_bytes, is_jpg):
         "squareTypes":     SQUARE_TYPES,
         "soundEnabled":    st.session_state.get("sound_enabled", True),
         "playSound":       st.session_state.get("play_sound"),
+        "answerEffect":    st.session_state.get("answer_effect"),
         "event":           st.session_state.animation_event,
         "eventLog":        st.session_state.event_log,
         "treasureEffect":  st.session_state.get("treasure_effect"),
@@ -2478,6 +2496,15 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #dice-result-txt.show{{opacity:1}}
 #confetti-canvas{{display:none;position:absolute;inset:0;z-index:45;pointer-events:none;border-radius:14px}}
 #confetti-canvas.show{{display:block}}
+#correct-overlay{{display:none;position:absolute;inset:0;background:radial-gradient(circle,rgba(44,210,130,.34),rgba(7,46,35,.50) 62%,rgba(0,0,0,.18));align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:46;border-radius:14px;pointer-events:none}}
+#correct-overlay.show{{display:flex;animation:correctFade 1.15s ease both}}
+#correct-emoji{{font-size:6.2em;filter:drop-shadow(0 0 16px rgba(95,255,175,.9));animation:correctPop .55s cubic-bezier(.18,1.45,.4,1)}}
+#correct-txt{{color:#caffdf;font-size:1.65em;font-weight:900;text-shadow:0 0 14px rgba(55,255,155,.75);animation:correctText .65s ease-out}}
+#correct-sparkles{{font-size:1.8em;letter-spacing:10px;animation:correctSparkle .8s ease-in-out infinite alternate}}
+@keyframes correctPop{{0%{{transform:scale(.18) rotate(-16deg);opacity:0}}70%{{transform:scale(1.18) rotate(4deg);opacity:1}}100%{{transform:scale(1);opacity:1}}}}
+@keyframes correctText{{0%{{transform:translateY(14px);opacity:0}}100%{{transform:translateY(0);opacity:1}}}}
+@keyframes correctSparkle{{from{{transform:scale(.86);opacity:.55}}to{{transform:scale(1.12);opacity:1}}}}
+@keyframes correctFade{{0%{{opacity:0}}15%{{opacity:1}}78%{{opacity:1}}100%{{opacity:0}}}}
 #wrong-overlay{{display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:45;border-radius:14px}}
 #wrong-overlay.show{{display:flex;animation:wrongShake .4s ease}}
 @keyframes wrongShake{{0%{{transform:translateX(0)}}15%{{transform:translateX(-10px)}}30%{{transform:translateX(10px)}}45%{{transform:translateX(-8px)}}60%{{transform:translateX(8px)}}75%{{transform:translateX(-4px)}}90%{{transform:translateX(4px)}}100%{{transform:translateX(0)}}}}
@@ -2538,6 +2565,11 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
         <div id="dice-result-txt"></div>
       </div>
       <canvas id="confetti-canvas"></canvas>
+      <div id="correct-overlay">
+        <div id="correct-sparkles">✨ ⭐ ✨</div>
+        <div id="correct-emoji">✅</div>
+        <div id="correct-txt">정답!</div>
+      </div>
       <div id="wrong-overlay">
         <div id="wrong-emoji">😢</div>
         <div id="wrong-txt">아쉬워요...</div>
@@ -2610,6 +2642,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const diceResultTxt=document.getElementById('dice-result-txt');
   const ctx2d=diceCanvas.getContext('2d');
   const confettiCanvas=document.getElementById('confetti-canvas');
+  const correctOverlay=document.getElementById('correct-overlay');
+  const correctTxt=document.getElementById('correct-txt');
   const wrongOverlay=document.getElementById('wrong-overlay');
   const ladderOverlay=document.getElementById('ladder-overlay');
   const ladderSvg=document.getElementById('ladder-svg');
@@ -2795,7 +2829,18 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     setTimeout(()=>{{canvas.classList.remove('show');cancelAnimationFrame(raf);}},2800);
   }}
 
-  function runWrongAnim(){{wrongOverlay.classList.add('show');setTimeout(()=>wrongOverlay.classList.remove('show'),1800);}}
+  function runCorrectAnim(){{
+    const effect=d.answerEffect||{{}};
+    correctTxt.textContent=effect.message||'정답!';
+    correctOverlay.classList.add('show');
+    setTimeout(()=>correctOverlay.classList.remove('show'),1200);
+  }}
+  function runWrongAnim(){{
+    const effect=d.answerEffect||{{}};
+    document.getElementById('wrong-txt').textContent=effect.message||'아쉬워요...';
+    wrongOverlay.classList.add('show');
+    setTimeout(()=>wrongOverlay.classList.remove('show'),1800);
+  }}
   function runTreasureAnim(onDone){{
     const effect=d.treasureEffect||{{}};
     treasureTxt.textContent=effect.message||'반짝이는 보물을 발견했어요!';
@@ -2966,7 +3011,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     else afterChase();
   }}
 
-  if(d.playSound==='wrong')runWrongAnim();
+  // 정답/오답 오버레이는 소리와 분리합니다.
+  // 따라서 뒤로 가기 주사위가 wrong 사운드를 사용해도 '아쉬워요'가 다시 뜨지 않습니다.
 
   function initBoard(){{
     drawDots();
@@ -3018,7 +3064,13 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       if(d.ladderAnimation)runLadderAnimation(afterLadder);else afterLadder();
       if(d.treasureEffect)runTreasureAnim();
     }}
-    if(d.celebrationEffect)runStreakCelebration();
+    if(d.celebrationEffect){{
+      // 3연속 이상은 기존의 더 큰 연속정답 효과가 정답 효과 역할을 합니다.
+      runStreakCelebration();
+    }}else if(d.answerEffect&&d.answerEffect.type==='correct'){{
+      runCorrectAnim();
+    }}
+    if(d.answerEffect&&d.answerEffect.type==='wrong')runWrongAnim();
     const logEl=document.getElementById('event-log');
     (d.eventLog||[]).slice().reverse().forEach(msg=>{{const div=document.createElement('div');div.className='log-item';div.textContent=msg;logEl.appendChild(div);}});
     if(d.soundEnabled&&d.playSound){{
@@ -3046,6 +3098,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 </body></html>"""
 
     st.session_state.play_sound        = None
+    st.session_state.answer_effect     = None
     st.session_state.animation_event   = None
     st.session_state.binbou_effect     = None
     st.session_state.treasure_effect   = None
