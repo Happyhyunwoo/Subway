@@ -28,6 +28,8 @@ STATIONS = [
 GOAL_STATION = "건대입구"
 GOAL_INDEX   = len(STATIONS) - 1
 BINBOU_RESET_DISTANCE = 6
+# 유령의 집은 성수역 안쪽의 빈 공간에 배치합니다. (보드 이미지의 백분율 좌표)
+GHOST_HOME_POINT = {"x": 76.5, "y": 31.0}
 
 ORIGINAL_WIDTH  = 1874
 ORIGINAL_HEIGHT = 1510
@@ -171,6 +173,12 @@ def image_file_data_uri(candidates, fallback_uri):
     return fallback_uri
 
 
+# 시작 화면과 SRT 말에 표시하는 KTX·SRT 결합 사진입니다.
+COMBINED_TRAIN_TOKEN = image_file_data_uri(
+    ["train_ktx_srt_connected_token.png"],
+    svg_data_uri(build_train_svg("KTX+SRT", "ktx", "#195fbb", "#873c92", "#c0e6ff", "#264884")),
+)
+
 TRAIN_TYPES = {
     "KTX 청룡": {
         "name": "KTX 청룡",
@@ -181,11 +189,8 @@ TRAIN_TYPES = {
             ["train_ktx_cheongryong.png", "1. 청룡.png"],
             svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
         ),
-        # 말 이동에는 작은 전용 이미지를 사용해 브라우저 재도색 비용을 줄입니다.
-        "token_image": image_file_data_uri(
-            ["train_ktx_cheongryong_token.png"],
-            svg_data_uri(build_train_svg("청룡", "ktx", "#0d63c7", "#28b7e8", "#9de8ff", "#0a3f8a")),
-        ),
+        # KTX와 SRT 열차 말은 연결된 사진으로 표시합니다.
+        "token_image": COMBINED_TRAIN_TOKEN,
     },
     "무궁화호": {
         "name": "무궁화호",
@@ -210,10 +215,8 @@ TRAIN_TYPES = {
             ["train_srt.png", "3. SRT.png"],
             svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
         ),
-        "token_image": image_file_data_uri(
-            ["train_srt_token.png"],
-            svg_data_uri(build_train_svg("SRT", "srt", "#8e214f", "#5b2c83", "#e35b93", "#5a1d47")),
-        ),
+        # SRT 말을 고르면 KTX와 SRT가 연결된 이미지를 사용합니다.
+        "token_image": COMBINED_TRAIN_TOKEN,
     },
 }
 
@@ -905,6 +908,7 @@ def init_game(keep_name=True):
     st.session_state.selected_train    = old_train
     st.session_state.position          = 0
     st.session_state.binbou_pos        = -8
+    st.session_state.binbou_released   = False  # 5번째 턴에 집에서 나온 뒤에는 계속 보드에 남습니다.
     st.session_state.binbou_attached   = False
     st.session_state.binbou_effect     = None
     st.session_state.game_phase        = "start"
@@ -1252,13 +1256,15 @@ def sync_binbou_attachment(log_change=True):
 def reset_binbou_after_catch(distance=BINBOU_RESET_DISTANCE):
     """먹보유령을 플레이어 뒤쪽으로 재배치합니다."""
     distance = max(1, int(distance))
-    st.session_state.binbou_pos = max(-8, st.session_state.position - distance)
+    minimum = 0 if st.session_state.get("binbou_released", False) else -8
+    st.session_state.binbou_pos = max(minimum, st.session_state.position - distance)
     st.session_state.binbou_attached = False
 
 
 def move_binbou(steps):
     bp = st.session_state.binbou_pos + steps
-    st.session_state.binbou_pos = max(-8, min(bp, GOAL_INDEX))
+    minimum = 0 if st.session_state.get("binbou_released", False) else -8
+    st.session_state.binbou_pos = max(minimum, min(bp, GOAL_INDEX))
     return sync_binbou_attachment(log_change=False)
 
 
@@ -1762,64 +1768,36 @@ def ghost_maze_next_step(game, ghost_pos, target_pos):
 
 
 def choose_ghost_game_type():
-    """첫 게임은 무작위로 정하고, 이후에는 같은 종류가 연속되지 않도록 번갈아 선택합니다."""
-    kinds = ["route", "maze"]
-    last = st.session_state.get("last_ghost_game_type")
-    choices = [k for k in kinds if k != last] if last in kinds else kinds
-    chosen = random.choice(choices)
-    st.session_state.last_ghost_game_type = chosen
-    return chosen
+    """먹보유령에게 잡힐 때는 항상 사다리(철로 추적)게임을 실행합니다."""
+    return "route"
 
 def begin_ghost_minigame(penalty, resume):
-    """유령 접촉 시 선로 추적 또는 미니 미로 중 하나의 퍼즐을 시작합니다."""
+    """먹보유령에게 붙잡히면 사다리형 철로 탈출 퍼즐만 시작합니다."""
     penalty = max(0, int(penalty))
     st.session_state.binbou_pos = st.session_state.position
     st.session_state.binbou_attached = True
 
-    game_type = choose_ghost_game_type()
-    game_id = random.randint(100000, 999999)
-    # 이전 유령 퍼즐의 결과 애니메이션이 새 퍼즐에 남지 않도록 초기화합니다.
+    puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
+    rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
+    st.session_state.ghost_puzzle_counter = puzzle_counter + 1
+    st.session_state.ghost_game = {
+        "id": random.randint(100000, 999999),
+        "game_type": "route",
+        "rungs": rungs,
+        "bottom_outcomes": bottom_outcomes,
+        "puzzle_index": puzzle_index,
+        "penalty": penalty,
+        "resume": resume,
+    }
+    # 이전 퍼즐 결과 애니메이션이 새 게임에 남지 않도록 합니다.
     st.session_state.ladder_animation = None
-
-    if game_type == "maze":
-        maze_counter = int(st.session_state.get("ghost_maze_counter", 0))
-        maze = build_ghost_maze_puzzle(maze_counter)
-        st.session_state.ghost_maze_counter = maze_counter + 1
-        st.session_state.ghost_game = {
-            "id": game_id,
-            "game_type": "maze",
-            "penalty": penalty,
-            "resume": resume,
-            **maze,
-        }
-        challenge_message = "👿 먹보유령 추격 미로! 벽을 이용해 움직이는 유령을 피하면서 🚪 탈출구까지 이동하세요!"
-        st.session_state.last_message = (
-            resume.get("base_msg", "")
-            + "\n\n👿 **먹보유령 추격 미로!** 벽 🧱은 움직이지 않지만, 열차가 한 칸 움직일 때마다 👿도 벽을 피해 한 칸 추격합니다. "
-              "유령의 현재 위치를 보면서 방향 버튼으로 피하고 🚪 탈출구에 먼저 도착하세요!"
-        )
-        add_event_log("🧭 먹보유령 추격 미로 시작!")
-    else:
-        puzzle_counter = int(st.session_state.get("ghost_puzzle_counter", 0))
-        rungs, bottom_outcomes, puzzle_index = build_ghost_route_puzzle(puzzle_counter)
-        st.session_state.ghost_puzzle_counter = puzzle_counter + 1
-        st.session_state.ghost_game = {
-            "id": game_id,
-            "game_type": "route",
-            "rungs": rungs,
-            "bottom_outcomes": bottom_outcomes,
-            "puzzle_index": puzzle_index,
-            "penalty": penalty,
-            "resume": resume,
-        }
-        challenge_message = "👿 먹보유령 선로 퍼즐! 눈으로 경로를 따라 탈출구와 연결되는 출발 번호를 찾으세요!"
-        st.session_state.last_message = (
-            resume.get("base_msg", "")
-            + "\n\n👿 **먹보유령 선로 탈출 퍼즐!** 아래의 🚪 탈출구 위치는 공개되어 있습니다. "
-              "선로를 눈으로 따라가서 탈출구에 도착하는 위쪽 번호를 선택하세요. 운 요소는 없습니다!"
-        )
-        add_event_log("🛤️ 먹보유령 선로 탈출 퍼즐 시작!")
-
+    challenge_message = "👿 먹보유령 사다리게임! 선로를 따라 🚪 탈출구와 연결되는 출발 번호를 찾으세요!"
+    st.session_state.last_message = (
+        resume.get("base_msg", "")
+        + "\n\n👿 **먹보유령 사다리게임!** 아래의 🚪 탈출구 위치는 공개되어 있습니다. "
+          "사다리 선로를 눈으로 따라가서 탈출구에 도착하는 위쪽 번호를 선택하세요. 운 요소는 없습니다!"
+    )
+    add_event_log("🛤️ 먹보유령 사다리게임 시작!")
     st.session_state.game_phase = "ghost_minigame"
     st.session_state.binbou_effect = {
         "id": random.randint(100000, 999999),
@@ -2112,8 +2090,11 @@ def apply_square_event(station_name, pos):
         if ev.get("item") and not add_item(ev["item"]):
             messages[-1] = "🎒 아이템 보관함이 가득 차 카드를 받지 못했습니다."
         if ev.get("push_binbou", 0) > 0:
-            move_binbou(-ev["push_binbou"])
-            messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
+            if st.session_state.binbou_pos >= 0:
+                move_binbou(-ev["push_binbou"])
+                messages.append(f"📍 먹보유령 {ev['push_binbou']}칸 후퇴!")
+            else:
+                messages.append("🏠 먹보유령은 아직 집에 숨어 있어요!")
 
     elif sq == "treasure":
         # 보물상자 위치와 퍼즐 유형은 분리합니다. 같은 역에 다시 도착해도
@@ -2151,7 +2132,8 @@ def get_move_animation_delay(event):
     # JavaScript animateToken: min(path 길이 × 220ms, 2000ms)
     player_seconds = min(len(path) * 0.220, 2.0) if len(path) > 1 else 0.0
     # JavaScript animateGhostToken: min(path 길이 × 170ms, 1500ms)
-    ghost_seconds = min(len(ghost_path) * 0.170, 1.5) if len(ghost_path) > 1 else 0.0
+    ghost_seconds = (1.35 if event.get("binbou_emerged") else
+                     min(len(ghost_path) * 0.170, 1.5) if len(ghost_path) > 1 else 0.0)
 
     # 이미지 로드/프레임 타이밍 차이를 위한 작은 여유 시간을 둡니다.
     return dice_seconds + player_seconds + ghost_seconds + 0.35
@@ -2230,8 +2212,9 @@ def move_forward():
         move_binbou(ghost_steps)
     elif st.session_state.turns >= 5:
         st.session_state.binbou_pos = max(0, landing_pos - 8)
+        st.session_state.binbou_released = True
         sync_binbou_attachment(log_change=False)
-        add_event_log("👿 먹보유령이 등장했습니다!")
+        add_event_log("🏠👿 먹보유령이 집에서 튀어나왔습니다!")
 
     landing_station = STATIONS[landing_pos]
     ev_msg, double_quiz, ghost_penalty = apply_square_event(landing_station, landing_pos)
@@ -2260,6 +2243,7 @@ def move_forward():
         "binbou_pos": final_binbou_pos,
         "binbou_start_pos": old_binbou_pos,
         "binbou_path_indices": binbou_path_indices,
+        "binbou_emerged": old_binbou_pos < 0 and binbou_before_contact >= 0,
         "binbou_reset_path_indices": [],
         "path_indices": path_indices,
         "dice": dice,
@@ -2345,7 +2329,9 @@ def move_backward():
     st.session_state.current_quiz = None
     st.session_state.correct_streak = 0
 
-    move_binbou(dice)
+    # 첫 등장 전에는 뒤로 가기 주사위로도 집에서 나오지 않습니다.
+    if old_binbou_pos >= 0:
+        move_binbou(dice)
     touching_ghost = sync_binbou_attachment(log_change=False)
     binbou_before_contact = st.session_state.binbou_pos
 
@@ -2360,6 +2346,7 @@ def move_backward():
         "binbou_pos": st.session_state.binbou_pos,
         "binbou_start_pos": old_binbou_pos,
         "binbou_path_indices": binbou_path_indices,
+        "binbou_emerged": False,
         "binbou_reset_path_indices": [],
         "path_indices": build_path(old_pos, new_pos),
         "dice": dice,
@@ -2544,6 +2531,8 @@ def render_board(map_bytes, is_jpg):
         "points":          STATION_POINTS,
         "position":        st.session_state.position,
         "binbou_pos":      st.session_state.binbou_pos,
+        "ghostHome":       GHOST_HOME_POINT,
+        "startTokenImage": COMBINED_TRAIN_TOKEN,
         "binbou_attached": st.session_state.binbou_attached,
         "binbouEffect":    st.session_state.get("binbou_effect"),
         "goal_index":      GOAL_INDEX,
@@ -2582,12 +2571,22 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
 #board-container{{position:relative;width:100%;aspect-ratio:{ORIGINAL_WIDTH}/{ORIGINAL_HEIGHT};border-radius:14px;overflow:hidden;box-shadow:0 0 40px rgba(100,0,255,0.4);border:2px solid #6c3fc5}}
 #board-img{{position:absolute;inset:0;width:100%;height:100%;object-fit:fill}}
 .token{{position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:18px;z-index:12;pointer-events:none;transform:translate3d(-200px,-200px,0);will-change:transform;backface-visibility:hidden;contain:layout paint style}}
-.train-token{{width:68px;height:38px;border-radius:18px;background:rgba(255,255,255,.96);padding:3px 5px;overflow:hidden}}
+.train-token{{width:86px;height:43px;border-radius:18px;background:rgba(255,255,255,.96);padding:3px 5px;overflow:hidden}}
 #token-player img{{width:100%;height:100%;object-fit:contain;display:block;transform:translateZ(0);backface-visibility:hidden}}
 #token-player{{box-shadow:0 0 14px 4px rgba(47,128,237,.9);animation:playerPulse 1.4s ease-in-out infinite}}
 #token-player.is-moving{{animation:none!important;box-shadow:0 0 9px 2px rgba(47,128,237,.65)!important}}
 #token-binbou.is-moving{{animation:none!important;box-shadow:0 0 9px 2px rgba(142,68,173,.65)!important}}
-#token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:11}}
+#token-binbou{{background:radial-gradient(circle at 35% 35%,#ff6b6b,#8e44ad);box-shadow:0 0 14px 4px rgba(142,68,173,.9);animation:binbouPulse 1s ease-in-out infinite;z-index:13}}
+#ghost-home{{position:absolute;width:55px;height:67px;display:flex;align-items:center;flex-direction:column;justify-content:center;transform:translate(-50%,-50%);z-index:9;pointer-events:none;filter:drop-shadow(0 3px 4px rgba(35,15,40,.5))}}
+#ghost-home-house{{font-size:42px;line-height:1;transform-origin:center bottom;transition:filter .3s}}
+#ghost-home-eyes{{position:absolute;font-size:14px;top:23px;left:21px;animation:ghostPeek 2.0s ease-in-out infinite}}
+#ghost-home-label{{color:#fff;font-size:9px;white-space:nowrap;font-weight:900;background:#56226a;border-radius:6px;padding:1px 4px;text-shadow:0 1px 2px #300a35}}
+#ghost-home.is-empty #ghost-home-eyes{{display:none}}
+#ghost-home.is-empty #ghost-home-house{{filter:grayscale(.4)}}
+#ghost-home.is-opening #ghost-home-house{{animation:ghostDoorShake .9s ease-out}}
+@keyframes ghostPeek{{0%,100%{{transform:translateY(2px);opacity:.6}}50%{{transform:translateY(-2px);opacity:1}}}}
+@keyframes ghostDoorShake{{0%,100%{{transform:rotate(0)}}25%{{transform:rotate(-8deg)}}60%{{transform:rotate(8deg)}}}}
+
 @keyframes playerPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(46,204,113,.8)}}50%{{box-shadow:0 0 24px 10px rgba(46,204,113,.3)}}}}
 @keyframes binbouPulse{{0%,100%{{box-shadow:0 0 10px 3px rgba(255,0,100,.8)}}50%{{box-shadow:0 0 24px 10px rgba(255,0,100,.3)}}}}
 .sdot{{position:absolute;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);z-index:5}}
@@ -2669,6 +2668,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   <div id="board-col">
     <div id="board-container">
       <img id="board-img" src="{image_data_uri}" alt="서울 지하철 2호선 게임 보드">
+      <div id="ghost-home" aria-label="먹보유령의 집"><span id="ghost-home-house">🏠</span><span id="ghost-home-eyes">👀</span><span id="ghost-home-label">먹보유령의 집</span></div>
       <div id="token-player" class="token train-token"><img id="token-player-img" alt="열차"></div>
       <div id="token-binbou" class="token" style="display:none">👿</div>
       <div id="station-label" class="slabel" style="display:none"></div>
@@ -2747,6 +2747,7 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   const tokenPlayer=document.getElementById('token-player');
   const playerImg=document.getElementById('token-player-img');
   const tokenBinbou=document.getElementById('token-binbou');
+  const ghostHome=document.getElementById('ghost-home');
   const label=document.getElementById('station-label');
   const pbar=document.getElementById('progress-bar');
   const winOverlay=document.getElementById('win-overlay');
@@ -2774,8 +2775,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   document.getElementById('s-train').textContent=(d.train&&d.train.name)||d.trainKey||'KTX 청룡';
   if(d.train){{
     if(playerImg){{
-      playerImg.src=d.train.token_image||d.train.image||'';
-      playerImg.alt=d.train.name||'열차';
+      playerImg.src=(d.phase==='start'&&d.startTokenImage)?d.startTokenImage:(d.train.token_image||d.train.image||'');
+      playerImg.alt=d.phase==='start'?'연결된 KTX와 SRT 열차':(d.train.name||'열차');
     }}
     tokenPlayer.style.borderColor=d.train.color||'#2f80ed';
     tokenPlayer.style.boxShadow='0 0 14px 4px '+(d.train.glow||'rgba(47,128,237,.85)');
@@ -2786,10 +2787,16 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
   pbar.style.width=pct+'%';
 
   const bp=d.binbou_pos,pp=d.position;
+  const homePoint=d.ghostHome||{{x:76.5,y:31}};
+  ghostHome.style.left=homePoint.x+'%';
+  ghostHome.style.top=homePoint.y+'%';
   if(bp>=0){{
+    if(!(d.event&&d.event.binbou_emerged))ghostHome.classList.add('is-empty');
     const dist=Math.max(0,pp-bp);
     document.getElementById('binbou-gauge').style.width=Math.max(0,100-dist*10)+'%';
     document.getElementById('binbou-txt').textContent=d.binbou_attached?'👿 밀착 중!':dist+'칸 뒤';
+  }}else{{
+    document.getElementById('binbou-txt').textContent='🏠 집에 숨어 있어요 ('+Math.max(0,5-(d.turns||0))+'턴 후 등장)';
   }}
 
   function placeTokenAt(el,xPct,yPct){{
@@ -3109,6 +3116,33 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     setTimeout(()=>{{ghostOverlay.classList.remove('show');onDone&&onDone();}},2200);
   }}
 
+  function animateGhostEmergence(pathIndices,doneCallback){{
+    const index=pathIndices&&pathIndices.length?pathIndices[0]:d.binbou_pos;
+    const dest=d.points[d.stations[index]];
+    if(!dest){{doneCallback&&doneCallback();return;}}
+    ghostHome.classList.add('is-opening');
+    tokenBinbou.style.display='flex';
+    placeTokenAt(tokenBinbou,homePoint.x,homePoint.y);
+    tokenBinbou.classList.add('is-moving');
+    const startTime=performance.now();
+    const duration=1100;
+    function frame(now){{
+      const raw=Math.min(1,(now-startTime)/duration);
+      const ease=raw*raw*(3-2*raw);
+      const hop=Math.sin(Math.PI*raw)*4;
+      placeTokenAt(tokenBinbou,homePoint.x+(dest.x-homePoint.x)*ease,
+                                homePoint.y+(dest.y-homePoint.y)*ease-hop);
+      if(raw<1)requestAnimationFrame(frame);
+      else{{
+        ghostHome.classList.remove('is-opening');
+        ghostHome.classList.add('is-empty');
+        tokenBinbou.classList.remove('is-moving');
+        doneCallback&&doneCallback();
+      }}
+    }}
+    setTimeout(()=>requestAnimationFrame(frame),180);
+  }}
+
   function animateGhostToken(pathIndices,doneCallback){{
     if(!pathIndices||pathIndices.length===0){{doneCallback&&doneCallback();return;}}
     tokenBinbou.style.display='flex';
@@ -3161,7 +3195,8 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
       if(d.binbouEffect)runGhostAnim(resetGhost);
       else resetGhost();
     }};
-    if(chasePath.length>0)animateGhostToken(chasePath,afterChase);
+    if(ev&&ev.binbou_emerged)animateGhostEmergence(chasePath,afterChase);
+    else if(chasePath.length>0)animateGhostToken(chasePath,afterChase);
     else afterChase();
   }}
 
@@ -3261,6 +3296,15 @@ body{{background:#1a0a2e;font-family:'Noto Sans KR',sans-serif;overflow:hidden}}
     components.html(html, height=820, scrolling=False)
 
 
+# 이전 버전에서 진행하던 미로가 세션에 남아 있으면 사다리게임으로 이어갑니다.
+legacy_ghost_game = st.session_state.get("ghost_game")
+if (st.session_state.get("game_phase") == "ghost_minigame"
+        and legacy_ghost_game and legacy_ghost_game.get("game_type") == "maze"):
+    begin_ghost_minigame(
+        legacy_ghost_game.get("penalty", 10),
+        legacy_ghost_game.get("resume", {}),
+    )
+
 # ═══════════════════════════════════════════════════
 #  SIDEBAR
 # ═══════════════════════════════════════════════════
@@ -3339,50 +3383,22 @@ with st.sidebar:
 
     elif phase == "ghost_minigame":
         game = st.session_state.get("ghost_game")
-        game_type = game.get("game_type", "route") if game else "route"
-
-        if game_type == "maze":
-            st.subheader("👿 지금 할 일: 추격 미로 탈출")
-            st.warning("🧭 벽 🧱을 이용해 추격하는 👿 먹보유령을 피하고, 열차를 🚪 탈출구까지 먼저 움직여 주세요.")
-            if game:
-                render_ghost_maze_preview(game)
-                feedback = game.get("feedback", "")
-                if feedback:
-                    st.info(feedback)
-
-                top_a, top_b, top_c = st.columns([1, 1, 1])
-                with top_b:
-                    if st.button("⬆️", key=f"ghost_maze_up_{game['id']}", use_container_width=True):
-                        resolve_ghost_maze_move("up"); st.rerun()
-                left_c, down_c, right_c = st.columns(3)
-                with left_c:
-                    if st.button("⬅️", key=f"ghost_maze_left_{game['id']}", use_container_width=True):
-                        resolve_ghost_maze_move("left"); st.rerun()
-                with down_c:
-                    if st.button("⬇️", key=f"ghost_maze_down_{game['id']}", use_container_width=True):
-                        resolve_ghost_maze_move("down"); st.rerun()
-                with right_c:
-                    if st.button("➡️", key=f"ghost_maze_right_{game['id']}", use_container_width=True):
-                        resolve_ghost_maze_move("right"); st.rerun()
-                st.caption(f"현재 이동: {int(game.get('moves', 0))}회 · 유령 이동: {int(game.get('ghost_moves', 0))}회 · 벽에 막힌 시도에는 유령도 움직이지 않습니다.")
-            st.caption("🎯 유령은 랜덤으로 움직이지 않습니다. 벽을 피해 현재 열차까지의 최단 경로로 매번 한 칸 추격합니다.")
-        else:
-            st.subheader("👿 지금 할 일: 탈출 선로 찾기")
-            st.warning("🛤️ 선로를 눈으로 따라가서 아래 🚪 탈출구와 이어지는 위쪽 번호를 골라 주세요.")
-            if game:
-                render_ladder_preview(game)
-                ladder_cols = st.columns(4)
-                for ladder_idx, col in enumerate(ladder_cols):
-                    with col:
-                        if st.button(
-                            f"{ladder_idx + 1}번",
-                            key=f"ghost_ladder_{game['id']}_{ladder_idx}",
-                            use_container_width=True,
-                            type="primary",
-                        ):
-                            resolve_ghost_minigame(ladder_idx)
-                            st.rerun()
-            st.caption("🎯 운 요소 없음: 경로를 정확히 추리하면 반드시 탈출합니다. 성공하면 먹보유령이 8칸 뒤로 물러납니다.")
+        st.subheader("👿 지금 할 일: 사다리게임")
+        st.warning("🛤️ 사다리 선로를 눈으로 따라가서 아래 🚪 탈출구로 이어지는 위쪽 번호를 골라 주세요.")
+        if game:
+            render_ladder_preview(game)
+            ladder_cols = st.columns(4)
+            for ladder_idx, col in enumerate(ladder_cols):
+                with col:
+                    if st.button(
+                        f"{ladder_idx + 1}번",
+                        key=f"ghost_ladder_{game['id']}_{ladder_idx}",
+                        use_container_width=True,
+                        type="primary",
+                    ):
+                        resolve_ghost_minigame(ladder_idx)
+                        st.rerun()
+        st.caption("🎯 운 요소 없음: 경로를 정확히 추리하면 반드시 탈출합니다. 성공하면 먹보유령이 8칸 뒤로 물러납니다.")
 
     elif phase == "treasure_minigame":
         game = st.session_state.get("treasure_game")
@@ -3813,7 +3829,8 @@ with st.sidebar:
             st.markdown("""
 - 🎲 주사위를 굴려 역 이동
 - 📝 도착 역에서 퀴즈 풀기
-- 👿 먹보유령을 만나면 공개된 선로를 눈으로 따라 🚪 탈출구로 이어지는 출발 번호를 찾기
+- 🏠 먹보유령은 처음 4턴 동안 집에 숨어 있다가 5번째 턴에 나옵니다.
+- 👿 먹보유령에게 잡히면 항상 사다리게임! 선로를 따라 🚪 탈출구로 이어지는 출발 번호를 찾기
 - 🎁 주황색 보물상자 칸에서는 역마다 다른 퍼즐 미니게임 도전 (성공해야 점수 획득)
 - 🔥 3연속 이상 정답이면 축하 특수 효과 등장
 - 🎁 5연속·10연속 정답 달성 시 특별 보물상자 4개 중 하나 선택 (+100점 / +20점 / +10점 / 꽝)
